@@ -1,0 +1,565 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.43.8.12551",
+      "templateHash": "12310549011831662481"
+    }
+  },
+  "parameters": {
+    "location": {
+      "type": "string",
+      "defaultValue": "[resourceGroup().location]"
+    },
+    "environmentName": {
+      "type": "string",
+      "defaultValue": "agentic-supply-chain"
+    },
+    "searchSku": {
+      "type": "string",
+      "defaultValue": "basic"
+    },
+    "chatModelDeploymentName": {
+      "type": "string",
+      "defaultValue": "gpt-4.1-mini"
+    },
+    "embeddingModelDeploymentName": {
+      "type": "string",
+      "defaultValue": "text-embedding-3-small"
+    },
+    "openAiApiVersion": {
+      "type": "string",
+      "defaultValue": "2024-05-01-preview"
+    }
+  },
+  "variables": {
+    "shoppingChatName": "shopping-chat",
+    "promotionIngestionName": "promotion-ingestion",
+    "shoppingAgentName": "shopping-agent",
+    "containerImageBootstrap": "mcr.microsoft.com/k8se/quickstart:latest",
+    "acrPullRoleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d')]"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Search/searchServices",
+      "apiVersion": "2023-11-01",
+      "name": "[format('{0}-search', parameters('environmentName'))]",
+      "location": "[parameters('location')]",
+      "sku": {
+        "name": "[parameters('searchSku')]"
+      },
+      "properties": {
+        "publicNetworkAccess": "enabled",
+        "replicaCount": 1,
+        "partitionCount": 1,
+        "hostingMode": "default"
+      }
+    },
+    {
+      "type": "Microsoft.OperationalInsights/workspaces",
+      "apiVersion": "2023-09-01",
+      "name": "[format('{0}-law', parameters('environmentName'))]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "sku": {
+          "name": "PerGB2018"
+        },
+        "retentionInDays": 30
+      }
+    },
+    {
+      "type": "Microsoft.Insights/components",
+      "apiVersion": "2020-02-02",
+      "name": "[format('{0}-appi', parameters('environmentName'))]",
+      "location": "[parameters('location')]",
+      "kind": "web",
+      "properties": {
+        "Application_Type": "web",
+        "WorkspaceResourceId": "[resourceId('Microsoft.OperationalInsights/workspaces', format('{0}-law', parameters('environmentName')))]"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.OperationalInsights/workspaces', format('{0}-law', parameters('environmentName')))]"
+      ]
+    },
+    {
+      "type": "Microsoft.ContainerRegistry/registries",
+      "apiVersion": "2023-07-01",
+      "name": "[format('{0}acr', replace(parameters('environmentName'), '-', ''))]",
+      "location": "[parameters('location')]",
+      "sku": {
+        "name": "Basic"
+      },
+      "properties": {
+        "adminUserEnabled": true
+      }
+    },
+    {
+      "type": "Microsoft.CognitiveServices/accounts",
+      "apiVersion": "2023-05-01",
+      "name": "[format('{0}-aoai', parameters('environmentName'))]",
+      "location": "[parameters('location')]",
+      "kind": "OpenAI",
+      "sku": {
+        "name": "S0"
+      },
+      "properties": {
+        "customSubDomainName": "[format('{0}aoai', replace(parameters('environmentName'), '-', ''))]",
+        "publicNetworkAccess": "Enabled"
+      }
+    },
+    {
+      "type": "Microsoft.CognitiveServices/accounts/deployments",
+      "apiVersion": "2023-05-01",
+      "name": "[format('{0}/{1}', format('{0}-aoai', parameters('environmentName')), parameters('chatModelDeploymentName'))]",
+      "sku": {
+        "name": "GlobalStandard",
+        "capacity": 10
+      },
+      "properties": {
+        "model": {
+          "format": "OpenAI",
+          "name": "gpt-4.1-mini",
+          "version": "2025-04-14"
+        },
+        "scaleSettings": {
+          "scaleType": "Standard"
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.CognitiveServices/accounts', format('{0}-aoai', parameters('environmentName')))]"
+      ]
+    },
+    {
+      "type": "Microsoft.CognitiveServices/accounts/deployments",
+      "apiVersion": "2023-05-01",
+      "name": "[format('{0}/{1}', format('{0}-aoai', parameters('environmentName')), parameters('embeddingModelDeploymentName'))]",
+      "sku": {
+        "name": "Standard",
+        "capacity": 10
+      },
+      "properties": {
+        "model": {
+          "format": "OpenAI",
+          "name": "text-embedding-3-small",
+          "version": "1"
+        },
+        "scaleSettings": {
+          "scaleType": "Standard"
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.CognitiveServices/accounts', format('{0}-aoai', parameters('environmentName')))]"
+      ]
+    },
+    {
+      "type": "Microsoft.App/managedEnvironments",
+      "apiVersion": "2023-05-01",
+      "name": "[format('{0}-cae', parameters('environmentName'))]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "appLogsConfiguration": {
+          "destination": "log-analytics",
+          "logAnalyticsConfiguration": {
+            "customerId": "[reference(resourceId('Microsoft.OperationalInsights/workspaces', format('{0}-law', parameters('environmentName'))), '2023-09-01').customerId]",
+            "sharedKey": "[listKeys(resourceId('Microsoft.OperationalInsights/workspaces', format('{0}-law', parameters('environmentName'))), '2023-09-01').primarySharedKey]"
+          }
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.OperationalInsights/workspaces', format('{0}-law', parameters('environmentName')))]"
+      ]
+    },
+    {
+      "type": "Microsoft.App/containerApps",
+      "apiVersion": "2023-05-01",
+      "name": "[variables('shoppingChatName')]",
+      "location": "[parameters('location')]",
+      "identity": {
+        "type": "SystemAssigned"
+      },
+      "properties": {
+        "managedEnvironmentId": "[resourceId('Microsoft.App/managedEnvironments', format('{0}-cae', parameters('environmentName')))]",
+        "configuration": {
+          "ingress": {
+            "external": true,
+            "targetPort": 8080,
+            "transport": "auto"
+          },
+          "activeRevisionsMode": "Single",
+          "registries": [
+            {
+              "server": "[reference(resourceId('Microsoft.ContainerRegistry/registries', format('{0}acr', replace(parameters('environmentName'), '-', ''))), '2023-07-01').loginServer]",
+              "identity": "system"
+            }
+          ],
+          "secrets": [
+            {
+              "name": "azure-search-admin-key",
+              "value": "[listAdminKeys(resourceId('Microsoft.Search/searchServices', format('{0}-search', parameters('environmentName'))), '2023-11-01').primaryKey]"
+            }
+          ]
+        },
+        "template": {
+          "containers": [
+            {
+              "name": "[variables('shoppingChatName')]",
+              "image": "[variables('containerImageBootstrap')]",
+              "resources": {
+                "cpu": "[json('0.5')]",
+                "memory": "1Gi"
+              },
+              "env": [
+                {
+                  "name": "AZURE_SEARCH_ENDPOINT",
+                  "value": "[format('https://{0}.search.windows.net', format('{0}-search', parameters('environmentName')))]"
+                },
+                {
+                  "name": "AZURE_SEARCH_ADMIN_KEY",
+                  "secretRef": "azure-search-admin-key"
+                },
+                {
+                  "name": "APPLICATIONINSIGHTS_CONNECTION_STRING",
+                  "value": "[reference(resourceId('Microsoft.Insights/components', format('{0}-appi', parameters('environmentName'))), '2020-02-02').ConnectionString]"
+                },
+                {
+                  "name": "AZURE_OPENAI_ENDPOINT",
+                  "value": "[reference(resourceId('Microsoft.CognitiveServices/accounts', format('{0}-aoai', parameters('environmentName'))), '2023-05-01').endpoint]"
+                },
+                {
+                  "name": "AZURE_AI_MODEL_DEPLOYMENT_NAME",
+                  "value": "[parameters('chatModelDeploymentName')]"
+                },
+                {
+                  "name": "AZURE_OPENAI_CHAT_DEPLOYMENT_NAME",
+                  "value": "[parameters('chatModelDeploymentName')]"
+                },
+                {
+                  "name": "AZURE_OPENAI_EMBEDDING_DEPLOYMENT_NAME",
+                  "value": "[parameters('embeddingModelDeploymentName')]"
+                },
+                {
+                  "name": "OPENAI_API_VERSION",
+                  "value": "[parameters('openAiApiVersion')]"
+                }
+              ]
+            }
+          ],
+          "scale": {
+            "minReplicas": 1,
+            "maxReplicas": 3
+          }
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Insights/components', format('{0}-appi', parameters('environmentName')))]",
+        "[resourceId('Microsoft.App/managedEnvironments', format('{0}-cae', parameters('environmentName')))]",
+        "[resourceId('Microsoft.ContainerRegistry/registries', format('{0}acr', replace(parameters('environmentName'), '-', '')))]",
+        "[resourceId('Microsoft.CognitiveServices/accounts', format('{0}-aoai', parameters('environmentName')))]",
+        "[resourceId('Microsoft.Search/searchServices', format('{0}-search', parameters('environmentName')))]"
+      ]
+    },
+    {
+      "type": "Microsoft.App/containerApps",
+      "apiVersion": "2023-05-01",
+      "name": "[variables('promotionIngestionName')]",
+      "location": "[parameters('location')]",
+      "identity": {
+        "type": "SystemAssigned"
+      },
+      "properties": {
+        "managedEnvironmentId": "[resourceId('Microsoft.App/managedEnvironments', format('{0}-cae', parameters('environmentName')))]",
+        "configuration": {
+          "ingress": {
+            "external": false,
+            "targetPort": 8081,
+            "transport": "auto"
+          },
+          "activeRevisionsMode": "Single",
+          "registries": [
+            {
+              "server": "[reference(resourceId('Microsoft.ContainerRegistry/registries', format('{0}acr', replace(parameters('environmentName'), '-', ''))), '2023-07-01').loginServer]",
+              "identity": "system"
+            }
+          ],
+          "secrets": [
+            {
+              "name": "azure-search-admin-key",
+              "value": "[listAdminKeys(resourceId('Microsoft.Search/searchServices', format('{0}-search', parameters('environmentName'))), '2023-11-01').primaryKey]"
+            }
+          ]
+        },
+        "template": {
+          "containers": [
+            {
+              "name": "[variables('promotionIngestionName')]",
+              "image": "[variables('containerImageBootstrap')]",
+              "resources": {
+                "cpu": "[json('0.5')]",
+                "memory": "1Gi"
+              },
+              "env": [
+                {
+                  "name": "AZURE_SEARCH_ENDPOINT",
+                  "value": "[format('https://{0}.search.windows.net', format('{0}-search', parameters('environmentName')))]"
+                },
+                {
+                  "name": "AZURE_SEARCH_ADMIN_KEY",
+                  "secretRef": "azure-search-admin-key"
+                },
+                {
+                  "name": "APPLICATIONINSIGHTS_CONNECTION_STRING",
+                  "value": "[reference(resourceId('Microsoft.Insights/components', format('{0}-appi', parameters('environmentName'))), '2020-02-02').ConnectionString]"
+                },
+                {
+                  "name": "AZURE_OPENAI_ENDPOINT",
+                  "value": "[reference(resourceId('Microsoft.CognitiveServices/accounts', format('{0}-aoai', parameters('environmentName'))), '2023-05-01').endpoint]"
+                },
+                {
+                  "name": "AZURE_AI_MODEL_DEPLOYMENT_NAME",
+                  "value": "[parameters('chatModelDeploymentName')]"
+                },
+                {
+                  "name": "AZURE_OPENAI_CHAT_DEPLOYMENT_NAME",
+                  "value": "[parameters('chatModelDeploymentName')]"
+                },
+                {
+                  "name": "AZURE_OPENAI_EMBEDDING_DEPLOYMENT_NAME",
+                  "value": "[parameters('embeddingModelDeploymentName')]"
+                },
+                {
+                  "name": "OPENAI_API_VERSION",
+                  "value": "[parameters('openAiApiVersion')]"
+                }
+              ]
+            }
+          ],
+          "scale": {
+            "minReplicas": 0,
+            "maxReplicas": 2
+          }
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Insights/components', format('{0}-appi', parameters('environmentName')))]",
+        "[resourceId('Microsoft.App/managedEnvironments', format('{0}-cae', parameters('environmentName')))]",
+        "[resourceId('Microsoft.ContainerRegistry/registries', format('{0}acr', replace(parameters('environmentName'), '-', '')))]",
+        "[resourceId('Microsoft.CognitiveServices/accounts', format('{0}-aoai', parameters('environmentName')))]",
+        "[resourceId('Microsoft.Search/searchServices', format('{0}-search', parameters('environmentName')))]"
+      ]
+    },
+    {
+      "type": "Microsoft.App/containerApps",
+      "apiVersion": "2023-05-01",
+      "name": "[variables('shoppingAgentName')]",
+      "location": "[parameters('location')]",
+      "identity": {
+        "type": "SystemAssigned"
+      },
+      "properties": {
+        "managedEnvironmentId": "[resourceId('Microsoft.App/managedEnvironments', format('{0}-cae', parameters('environmentName')))]",
+        "configuration": {
+          "ingress": {
+            "external": true,
+            "targetPort": 8090,
+            "transport": "auto"
+          },
+          "activeRevisionsMode": "Single",
+          "registries": [
+            {
+              "server": "[reference(resourceId('Microsoft.ContainerRegistry/registries', format('{0}acr', replace(parameters('environmentName'), '-', ''))), '2023-07-01').loginServer]",
+              "identity": "system"
+            }
+          ],
+          "secrets": [
+            {
+              "name": "azure-search-admin-key",
+              "value": "[listAdminKeys(resourceId('Microsoft.Search/searchServices', format('{0}-search', parameters('environmentName'))), '2023-11-01').primaryKey]"
+            }
+          ]
+        },
+        "template": {
+          "containers": [
+            {
+              "name": "[variables('shoppingAgentName')]",
+              "image": "[variables('containerImageBootstrap')]",
+              "resources": {
+                "cpu": "[json('0.5')]",
+                "memory": "1Gi"
+              },
+              "env": [
+                {
+                  "name": "AZURE_SEARCH_ENDPOINT",
+                  "value": "[format('https://{0}.search.windows.net', format('{0}-search', parameters('environmentName')))]"
+                },
+                {
+                  "name": "AZURE_SEARCH_ADMIN_KEY",
+                  "secretRef": "azure-search-admin-key"
+                },
+                {
+                  "name": "APPLICATIONINSIGHTS_CONNECTION_STRING",
+                  "value": "[reference(resourceId('Microsoft.Insights/components', format('{0}-appi', parameters('environmentName'))), '2020-02-02').ConnectionString]"
+                },
+                {
+                  "name": "AZURE_OPENAI_ENDPOINT",
+                  "value": "[reference(resourceId('Microsoft.CognitiveServices/accounts', format('{0}-aoai', parameters('environmentName'))), '2023-05-01').endpoint]"
+                },
+                {
+                  "name": "AZURE_AI_MODEL_DEPLOYMENT_NAME",
+                  "value": "[parameters('chatModelDeploymentName')]"
+                },
+                {
+                  "name": "AZURE_OPENAI_CHAT_DEPLOYMENT_NAME",
+                  "value": "[parameters('chatModelDeploymentName')]"
+                },
+                {
+                  "name": "AZURE_OPENAI_EMBEDDING_DEPLOYMENT_NAME",
+                  "value": "[parameters('embeddingModelDeploymentName')]"
+                },
+                {
+                  "name": "OPENAI_API_VERSION",
+                  "value": "[parameters('openAiApiVersion')]"
+                }
+              ]
+            }
+          ],
+          "scale": {
+            "minReplicas": 1,
+            "maxReplicas": 3
+          }
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Insights/components', format('{0}-appi', parameters('environmentName')))]",
+        "[resourceId('Microsoft.App/managedEnvironments', format('{0}-cae', parameters('environmentName')))]",
+        "[resourceId('Microsoft.ContainerRegistry/registries', format('{0}acr', replace(parameters('environmentName'), '-', '')))]",
+        "[resourceId('Microsoft.CognitiveServices/accounts', format('{0}-aoai', parameters('environmentName')))]",
+        "[resourceId('Microsoft.Search/searchServices', format('{0}-search', parameters('environmentName')))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "scope": "[resourceId('Microsoft.ContainerRegistry/registries', format('{0}acr', replace(parameters('environmentName'), '-', '')))]",
+      "name": "[guid(resourceId('Microsoft.ContainerRegistry/registries', format('{0}acr', replace(parameters('environmentName'), '-', ''))), variables('shoppingChatName'), variables('acrPullRoleDefinitionId'))]",
+      "properties": {
+        "roleDefinitionId": "[variables('acrPullRoleDefinitionId')]",
+        "principalId": "[reference(resourceId('Microsoft.App/containerApps', variables('shoppingChatName')), '2023-05-01', 'full').identity.principalId]",
+        "principalType": "ServicePrincipal"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.ContainerRegistry/registries', format('{0}acr', replace(parameters('environmentName'), '-', '')))]",
+        "[resourceId('Microsoft.App/containerApps', variables('shoppingChatName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "scope": "[resourceId('Microsoft.ContainerRegistry/registries', format('{0}acr', replace(parameters('environmentName'), '-', '')))]",
+      "name": "[guid(resourceId('Microsoft.ContainerRegistry/registries', format('{0}acr', replace(parameters('environmentName'), '-', ''))), variables('promotionIngestionName'), variables('acrPullRoleDefinitionId'))]",
+      "properties": {
+        "roleDefinitionId": "[variables('acrPullRoleDefinitionId')]",
+        "principalId": "[reference(resourceId('Microsoft.App/containerApps', variables('promotionIngestionName')), '2023-05-01', 'full').identity.principalId]",
+        "principalType": "ServicePrincipal"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.ContainerRegistry/registries', format('{0}acr', replace(parameters('environmentName'), '-', '')))]",
+        "[resourceId('Microsoft.App/containerApps', variables('promotionIngestionName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "scope": "[resourceId('Microsoft.ContainerRegistry/registries', format('{0}acr', replace(parameters('environmentName'), '-', '')))]",
+      "name": "[guid(resourceId('Microsoft.ContainerRegistry/registries', format('{0}acr', replace(parameters('environmentName'), '-', ''))), variables('shoppingAgentName'), variables('acrPullRoleDefinitionId'))]",
+      "properties": {
+        "roleDefinitionId": "[variables('acrPullRoleDefinitionId')]",
+        "principalId": "[reference(resourceId('Microsoft.App/containerApps', variables('shoppingAgentName')), '2023-05-01', 'full').identity.principalId]",
+        "principalType": "ServicePrincipal"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.ContainerRegistry/registries', format('{0}acr', replace(parameters('environmentName'), '-', '')))]",
+        "[resourceId('Microsoft.App/containerApps', variables('shoppingAgentName'))]"
+      ]
+    }
+  ],
+  "outputs": {
+    "searchServiceName": {
+      "type": "string",
+      "value": "[format('{0}-search', parameters('environmentName'))]"
+    },
+    "searchEndpoint": {
+      "type": "string",
+      "value": "[format('https://{0}.search.windows.net', format('{0}-search', parameters('environmentName')))]"
+    },
+    "AZURE_SEARCH_ENDPOINT": {
+      "type": "string",
+      "value": "[format('https://{0}.search.windows.net', format('{0}-search', parameters('environmentName')))]"
+    },
+    "AZURE_SEARCH_ADMIN_KEY": {
+      "type": "string",
+      "value": "[listAdminKeys(resourceId('Microsoft.Search/searchServices', format('{0}-search', parameters('environmentName'))), '2023-11-01').primaryKey]"
+    },
+    "APPLICATIONINSIGHTS_CONNECTION_STRING": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Insights/components', format('{0}-appi', parameters('environmentName'))), '2020-02-02').ConnectionString]"
+    },
+    "AZURE_CONTAINER_REGISTRY_ENDPOINT": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.ContainerRegistry/registries', format('{0}acr', replace(parameters('environmentName'), '-', ''))), '2023-07-01').loginServer]"
+    },
+    "AZURE_REGISTRY": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.ContainerRegistry/registries', format('{0}acr', replace(parameters('environmentName'), '-', ''))), '2023-07-01').loginServer]"
+    },
+    "AZURE_CONTAINER_APPS_ENVIRONMENT_ID": {
+      "type": "string",
+      "value": "[resourceId('Microsoft.App/managedEnvironments', format('{0}-cae', parameters('environmentName')))]"
+    },
+    "AZURE_CONTAINER_APPS_ENVIRONMENT_NAME": {
+      "type": "string",
+      "value": "[format('{0}-cae', parameters('environmentName'))]"
+    },
+    "AZURE_OPENAI_ENDPOINT": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.CognitiveServices/accounts', format('{0}-aoai', parameters('environmentName'))), '2023-05-01').endpoint]"
+    },
+    "AZURE_AI_MODEL_DEPLOYMENT_NAME": {
+      "type": "string",
+      "value": "[parameters('chatModelDeploymentName')]"
+    },
+    "AZURE_OPENAI_CHAT_DEPLOYMENT_NAME": {
+      "type": "string",
+      "value": "[parameters('chatModelDeploymentName')]"
+    },
+    "AZURE_OPENAI_EMBEDDING_DEPLOYMENT_NAME": {
+      "type": "string",
+      "value": "[parameters('embeddingModelDeploymentName')]"
+    },
+    "OPENAI_API_VERSION": {
+      "type": "string",
+      "value": "[parameters('openAiApiVersion')]"
+    },
+    "SHOPPING_CHAT_CONTAINER_APP_NAME": {
+      "type": "string",
+      "value": "[variables('shoppingChatName')]"
+    },
+    "SHOPPING_AGENT_CONTAINER_APP_NAME": {
+      "type": "string",
+      "value": "[variables('shoppingAgentName')]"
+    },
+    "PROMOTION_INGESTION_CONTAINER_APP_NAME": {
+      "type": "string",
+      "value": "[variables('promotionIngestionName')]"
+    },
+    "SHOPPING_CHAT_URL": {
+      "type": "string",
+      "value": "[format('https://{0}', reference(resourceId('Microsoft.App/containerApps', variables('shoppingChatName')), '2023-05-01').configuration.ingress.fqdn)]"
+    },
+    "SHOPPING_AGENT_URL": {
+      "type": "string",
+      "value": "[format('https://{0}', reference(resourceId('Microsoft.App/containerApps', variables('shoppingAgentName')), '2023-05-01').configuration.ingress.fqdn)]"
+    }
+  }
+}

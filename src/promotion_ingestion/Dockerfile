@@ -1,6 +1,6 @@
 FROM python:3.12-slim
 WORKDIR /app
-COPY ./src/indexer/requirements.txt /tmp/requirements.txt
+COPY ./src/promotion_ingestion/requirements.txt /tmp/requirements.txt
 RUN pip install --no-cache-dir -r /tmp/requirements.txt
 COPY ./src /app/src
-ENTRYPOINT ["python", "-m", "src.indexer.job"]
+ENTRYPOINT ["python", "-m", "src.promotion_ingestion.job"]
