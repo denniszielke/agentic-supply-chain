@@ -21,3 +21,8 @@ hooks:
   postprovision:
     shell: sh
     run: python scripts/deploy_assets.py
+  postdeploy:
+    - shell: sh
+      run: cp .azure/$AZURE_ENV_NAME/.env ./
+    - shell: sh
+      run: python scripts/deploy_agents.py

@@ -74,16 +74,22 @@ agentic-supply-chain/
 azd up
 ```
 
-This creates the Azure Container Apps environment, Azure AI Search service, and container registry defined in `infra/main.bicep`.
+This provisions all core runtime dependencies from `infra/main.bicep`, including:
+
+- Azure Container Apps environment
+- Azure Container Registry (ACR)
+- Azure AI Search
+- Azure OpenAI account with model deployments (`gpt-4.1-mini`, `text-embedding-3-small`)
+- Log Analytics + Application Insights
+- Bootstrap Container Apps for `shopping-chat`, `promotion-ingestion`, and `shopping-agent`
 
 ### 2. Create the search index
 
-Set required environment variables:
-
-```bash
-export AZURE_SEARCH_ENDPOINT="https://<your-service>.search.windows.net"
-export AZURE_SEARCH_ADMIN_KEY="<admin-key>"
-```
+After `azd up`, azd writes all infra outputs to `.azure/<env-name>/.env`.
+The project `postdeploy` hook copies this to `./.env`, so variables such as
+`AZURE_SEARCH_ENDPOINT`, `AZURE_SEARCH_ADMIN_KEY`, `AZURE_OPENAI_ENDPOINT`,
+`AZURE_AI_MODEL_DEPLOYMENT_NAME`, `AZURE_REGISTRY`, and
+`APPLICATIONINSIGHTS_CONNECTION_STRING` are available automatically.
 
 Then run:
 
@@ -103,8 +109,12 @@ export AZURE_REGISTRY="<your-registry>.azurecr.io"
 ```bash
 export AZURE_RESOURCE_GROUP="<resource-group>"
 export AZURE_REGISTRY="<your-registry>.azurecr.io"
+export AZURE_CONTAINER_APPS_ENVIRONMENT_NAME="<container-apps-environment-name>"
 python scripts/deploy_agents.py
 ```
+
+`scripts/deploy_agents.py` is idempotent: it updates existing apps and creates
+missing ones directly from agent/container code when needed.
 
 ### 5. Ingest a promotional flyer
 
