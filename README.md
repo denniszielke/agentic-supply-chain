@@ -1,66 +1,173 @@
 # agentic-supply-chain
 
-Agentic supermarket supply-chain scenario with:
+An agentic scenario that solves **supplier optimization for retail shopping**. Weekly promotional flyers from multiple supermarkets (e.g. REWE, ALDI SÜD) are ingested and indexed, then agents and MCP-capable apps help users plan optimal shopping tours across stores.
 
-- **MCP app + UI** for product search, recommendations, and supplier inventory
-- **Vector-enabled Azure AI Search model** for Supplier / Category / Item
-- **Flyer indexing job** (images, PDFs, websites)
-- **Hosted shopping planner agent** with A2A-style HTTP capability
-- **`azd` infrastructure deployment** and Python asset deployment scripts
+---
 
-## Repository structure
+## Components
 
-- `/infra` – Bicep templates and search schema
-- `/src` – Python services (MCP app, indexer job, shopping agent)
-- `/tools` – deployment and index automation scripts
+| Component | Folder | Description |
+|---|---|---|
+| **shopping_chat** | `src/shopping_chat` | Containerized MCP app + interactive browser UI for product search, recommendations, and supplier inventory |
+| **promotion_ingestion** | `src/promotion_ingestion` | Container job that downloads and indexes promotional flyers (PDF, images, websites) into Azure AI Search |
+| **shopping_agent** | `src/shopping_agent` | Hosted agent with A2A-style HTTP API for shopping list optimization across current promotions |
+| **shared** | `src/shared` | Shared Pydantic data models (`Supplier`, `Category`, `Item`), shopping planner logic, and seed data |
+| **infra** | `infra` | Bicep templates for Azure deployment and AI Search vector schema |
+| **scripts** | `scripts` | Deployment, index, container build and lifecycle scripts |
+
+---
 
 ## Data model
 
-The implementation follows a normalized model:
+The project normalises all flyer data into three core entities:
 
-- `Supplier`: flyer/store/timeframe context
-- `Category`: normalized taxonomy and semantic grouping
-- `Item`: concrete offer instance linked to supplier + category
+- **Supplier** — one per flyer/campaign: store, region, validity window, address
+- **Category** — normalised taxonomy: name, tags, embedding
+- **Item** — single offer instance: product, pricing, promotion, linked to supplier + category
 
-See `/src/shared/models.py` and `/infra/search-schema.json`.
-The vector schema uses `content_vector` with 1536 dimensions (compatible with embedding models like `text-embedding-3-small`), so model changes may require schema updates.
+The vector schema uses `content_vector` with **1536 dimensions** (compatible with `text-embedding-3-small`). Changing embedding models requires a schema update in `infra/search-schema.json`.
 
-## Quickstart
+Full schema: [`infra/search-schema.json`](infra/search-schema.json)
 
-### 1) Provision infrastructure with azd
+---
+
+## Repository structure
+
+```
+agentic-supply-chain/
+├── azure.yaml                    # azd configuration
+├── infra/
+│   ├── main.bicep                # Azure resource definitions
+│   ├── main.parameters.json
+│   └── search-schema.json        # Azure AI Search vector index schema
+├── src/
+│   ├── shared/                   # Pydantic models, planner, seed data
+│   ├── shopping_chat/            # MCP app + UI  →  see src/shopping_chat/README.md
+│   ├── promotion_ingestion/      # Flyer indexer  →  see src/promotion_ingestion/README.md
+│   └── shopping_agent/           # A2A planning agent  →  see src/shopping_agent/README.md
+├── scripts/
+│   ├── build_containers.sh       # Build (and optionally push) all Docker images
+│   ├── create_index.py           # Create / update Azure AI Search index
+│   ├── delete_index.py           # Delete Azure AI Search index
+│   ├── deploy_agents.py          # Deploy all Container Apps to Azure
+│   ├── delete_agents.py          # Delete all Container Apps from Azure
+│   └── search_index_pipeline.py  # Lower-level index helper (used by deploy_assets.py)
+└── tests/
+    ├── test_catalog.py
+    └── test_planner.py
+```
+
+---
+
+## Deployment
+
+### Prerequisites
+
+- [Azure Developer CLI (azd)](https://aka.ms/azd)
+- Python 3.12+
+- Docker (for container builds)
+- Azure CLI (for post-provision scripts)
+
+### 1. Provision Azure infrastructure
 
 ```bash
 azd up
 ```
 
-### 2) Deploy search assets (index)
+This creates the Azure Container Apps environment, Azure AI Search service, and container registry defined in `infra/main.bicep`.
+
+### 2. Create the search index
+
+Set required environment variables:
 
 ```bash
-python tools/deploy_assets.py
+export AZURE_SEARCH_ENDPOINT="https://<your-service>.search.windows.net"
+export AZURE_SEARCH_ADMIN_KEY="<admin-key>"
 ```
 
-### 3) Run services locally
-
-MCP app + UI:
+Then run:
 
 ```bash
-uvicorn src.mcp_app.app:app --reload --port 8080
+python scripts/create_index.py
 ```
 
-Indexer job:
+### 3. Build and push container images
 
 ```bash
-python -m src.indexer.job --source https://example.org/flyer.pdf --supplier-id rewe-week-24
+export AZURE_REGISTRY="<your-registry>.azurecr.io"
+./scripts/build_containers.sh "${AZURE_REGISTRY}" latest
 ```
 
-Shopping planner agent (A2A endpoint):
+### 4. Deploy agents to Azure Container Apps
 
 ```bash
-uvicorn src.agent.a2a_api:app --reload --port 8090
+export AZURE_RESOURCE_GROUP="<resource-group>"
+export AZURE_REGISTRY="<your-registry>.azurecr.io"
+python scripts/deploy_agents.py
 ```
+
+### 5. Ingest a promotional flyer
+
+```bash
+python -m src.promotion_ingestion.job \
+    --source https://example.com/weekly-flyer.pdf \
+    --supplier-id rewe-berlin-week-24 \
+    --output data/indexed-items.json
+```
+
+---
+
+## Running services locally
+
+**MCP app + UI:**
+
+```bash
+uvicorn src.shopping_chat.app:app --reload --port 8080
+```
+
+Open http://localhost:8080
+
+**Shopping planner agent (A2A):**
+
+```bash
+uvicorn src.shopping_agent.a2a_api:app --reload --port 8090
+```
+
+---
+
+## Cleanup
+
+Delete search index:
+
+```bash
+python scripts/delete_index.py
+```
+
+Delete all Container App agents:
+
+```bash
+export AZURE_RESOURCE_GROUP="<resource-group>"
+python scripts/delete_agents.py
+```
+
+Tear down all Azure resources:
+
+```bash
+azd down
+```
+
+---
 
 ## Tests
 
 ```bash
 python -m unittest discover -s tests -v
 ```
+
+---
+
+## Component READMEs
+
+- [`src/shopping_chat/README.md`](src/shopping_chat/README.md)
+- [`src/promotion_ingestion/README.md`](src/promotion_ingestion/README.md)
+- [`src/shopping_agent/README.md`](src/shopping_agent/README.md)

@@ -8,7 +8,7 @@ from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
-from src.mcp_app.catalog import CatalogService
+from src.shopping_chat.catalog import CatalogService
 from src.shared.models import (
     Address,
     IngestionMetadata,

@@ -1,6 +1,6 @@
 import unittest
 
-from src.mcp_app.catalog import CatalogService
+from src.shopping_chat.catalog import CatalogService
 from src.shared.models import Item, Pricing
 
 

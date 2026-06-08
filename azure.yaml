@@ -2,16 +2,16 @@ name: agentic-supply-chain
 metadata:
   template: agentic-supply-chain@0.0.1
 services:
-  mcp-app:
-    project: ./src/mcp_app
+  shopping-chat:
+    project: ./src/shopping_chat
     host: containerapp
     language: py
-  indexer-job:
-    project: ./src/indexer
+  promotion-ingestion:
+    project: ./src/promotion_ingestion
     host: containerapp
     language: py
   shopping-agent:
-    project: ./src/agent
+    project: ./src/shopping_agent
     host: containerapp
     language: py
 infra:
@@ -20,4 +20,4 @@ infra:
 hooks:
   postprovision:
     shell: sh
-    run: python tools/deploy_assets.py
+    run: python scripts/deploy_assets.py

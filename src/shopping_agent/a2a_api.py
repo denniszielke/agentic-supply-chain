@@ -5,7 +5,7 @@ from typing import List
 from fastapi import FastAPI
 from pydantic import BaseModel
 
-from src.agent.shopping_agent import ShoppingPlannerAgent
+from src.shopping_agent.shopping_agent import ShoppingPlannerAgent
 from src.shared.planner import ShoppingRequest
 from src.shared.seed_data import seed_items
 
