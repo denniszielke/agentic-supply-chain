@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import List
 
@@ -12,16 +12,17 @@ from src.mcp_app.catalog import CatalogService
 from src.shared.models import (
     Address,
     IngestionMetadata,
-    Item,
     OfferValidity,
-    Pricing,
     Supplier,
 )
+from src.shared.seed_data import seed_items
 
 app = FastAPI(title="agentic-supply-chain MCP app")
 
 
 def _seed_suppliers() -> List[Supplier]:
+    start = date.today()
+    end = start + timedelta(days=6)
     return [
         Supplier(
             supplier_id="rewe-berlin-week-24",
@@ -34,9 +35,10 @@ def _seed_suppliers() -> List[Supplier]:
                 country="DE",
             ),
             region="Berlin",
-            offer_validity=OfferValidity(start_date=date.today(), end_date=date.today()),
+            offer_validity=OfferValidity(start_date=start, end_date=end),
             ingestion_metadata=IngestionMetadata(
-                source_document="seed", ingestion_timestamp=datetime.utcnow()
+                source_document="seed",
+                ingestion_timestamp=datetime.now(timezone.utc),
             ),
         ),
         Supplier(
@@ -50,43 +52,16 @@ def _seed_suppliers() -> List[Supplier]:
                 country="DE",
             ),
             region="Berlin",
-            offer_validity=OfferValidity(start_date=date.today(), end_date=date.today()),
+            offer_validity=OfferValidity(start_date=start, end_date=end),
             ingestion_metadata=IngestionMetadata(
-                source_document="seed", ingestion_timestamp=datetime.utcnow()
+                source_document="seed",
+                ingestion_timestamp=datetime.now(timezone.utc),
             ),
         ),
     ]
 
 
-SEED_ITEMS = [
-    Item(
-        item_id="i-1",
-        supplier_id="rewe-berlin-week-24",
-        name="Bio Avocado",
-        brand="REWE Bio",
-        description_text="Frische Bio Avocado aus Spanien, Klasse I",
-        category_id="vegetables",
-        pricing=Pricing(current_price=1.29, original_price=1.79, discount_percentage=27.9),
-    ),
-    Item(
-        item_id="i-2",
-        supplier_id="aldi-berlin-week-24",
-        name="Milk Vollmilch 3.5%",
-        brand="Milsani",
-        description_text="1L Vollmilch, regional",
-        category_id="dairy",
-        pricing=Pricing(current_price=0.95, original_price=1.09, discount_percentage=12.8),
-    ),
-    Item(
-        item_id="i-3",
-        supplier_id="aldi-berlin-week-24",
-        name="Rinderhack 500g",
-        brand="Meine Metzgerei",
-        description_text="Frisches Rinderhackfleisch 500g",
-        category_id="meat",
-        pricing=Pricing(current_price=3.49, original_price=4.49, discount_percentage=22.3),
-    ),
-]
+SEED_ITEMS = seed_items()
 
 catalog = CatalogService(SEED_ITEMS)
 suppliers = _seed_suppliers()

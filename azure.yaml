@@ -20,4 +20,4 @@ infra:
 hooks:
   postprovision:
     shell: sh
-    run: python /tmp/workspace/denniszielke/agentic-supply-chain/tools/deploy_assets.py
+    run: python tools/deploy_assets.py

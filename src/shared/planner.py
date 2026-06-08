@@ -46,15 +46,16 @@ def build_shopping_plan(requests: List[ShoppingRequest], catalog: List[Item]) ->
         best_item = _match_item(request.product, catalog)
         if not best_item:
             continue
+        normalized_quantity = max(request.quantity, 1)
         unit = best_item.pricing.current_price
         plan_lines.append(
             PlannedLine(
                 product=request.product,
                 supplier_id=best_item.supplier_id,
                 chosen_item_id=best_item.item_id,
-                quantity=max(request.quantity, 1),
+                quantity=normalized_quantity,
                 unit_price=unit,
-                estimated_cost=unit * max(request.quantity, 1),
+                estimated_cost=unit * normalized_quantity,
             )
         )
 

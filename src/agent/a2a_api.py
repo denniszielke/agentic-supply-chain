@@ -6,11 +6,11 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 
 from src.agent.shopping_agent import ShoppingPlannerAgent
-from src.mcp_app.app import SEED_ITEMS
 from src.shared.planner import ShoppingRequest
+from src.shared.seed_data import seed_items
 
 app = FastAPI(title="shopping-planner-agent")
-agent = ShoppingPlannerAgent(SEED_ITEMS)
+agent = ShoppingPlannerAgent(seed_items())
 
 
 class ShoppingListLine(BaseModel):

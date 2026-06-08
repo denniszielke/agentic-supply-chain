@@ -23,6 +23,7 @@ The implementation follows a normalized model:
 - `Item`: concrete offer instance linked to supplier + category
 
 See `/src/shared/models.py` and `/infra/search-schema.json`.
+The vector schema uses `content_vector` with 1536 dimensions (compatible with embedding models like `text-embedding-3-small`), so model changes may require schema updates.
 
 ## Quickstart
 
@@ -35,7 +36,7 @@ azd up
 ### 2) Deploy search assets (index)
 
 ```bash
-python /tmp/workspace/denniszielke/agentic-supply-chain/tools/deploy_assets.py
+python tools/deploy_assets.py
 ```
 
 ### 3) Run services locally

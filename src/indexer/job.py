@@ -85,7 +85,7 @@ def main() -> None:
     parser.add_argument("--supplier-id", required=True, help="Supplier context ID")
     parser.add_argument(
         "--output",
-        default="/tmp/workspace/denniszielke/agentic-supply-chain/data/indexed-items.json",
+        default="data/indexed-items.json",
         help="Output JSON file",
     )
     args = parser.parse_args()

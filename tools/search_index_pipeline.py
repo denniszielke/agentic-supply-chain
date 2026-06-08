@@ -31,7 +31,7 @@ def create_or_update_index(schema_path: Path) -> None:
 
 
 def main() -> None:
-    schema_path = Path("/tmp/workspace/denniszielke/agentic-supply-chain/infra/search-schema.json")
+    schema_path = Path(__file__).resolve().parents[1] / "infra" / "search-schema.json"
     create_or_update_index(schema_path)
 
 

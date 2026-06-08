@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from typing import Dict, List, Optional
 
 from pydantic import BaseModel, Field
@@ -37,7 +37,9 @@ class OfferValidity(BaseModel):
 
 class IngestionMetadata(BaseModel):
     source_document: str
-    ingestion_timestamp: datetime = Field(default_factory=datetime.utcnow)
+    ingestion_timestamp: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc)
+    )
 
 
 class Supplier(BaseModel):
