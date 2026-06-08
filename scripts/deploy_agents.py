@@ -3,7 +3,7 @@ using the Azure CLI after infrastructure has been provisioned with `azd up`.
 
 Environment variables required:
   AZURE_RESOURCE_GROUP  - target resource group
-  AZURE_REGISTRY        - Azure Container Registry hostname (e.g. myregistry.azurecr.io)
+  AZURE_REGISTRY        - Azure Container Registry login server (e.g. myregistry.azurecr.io)
   AZURE_CONTAINER_APPS_ENVIRONMENT_NAME - target Container Apps environment name
   TAG                   - image tag to deploy (default: latest)
 
@@ -14,6 +14,7 @@ Optional hosted agent deployment:
 """
 from __future__ import annotations
 
+import json
 import os
 import subprocess
 import sys
@@ -22,7 +23,10 @@ from pathlib import Path
 RESOURCE_GROUP = os.getenv("AZURE_RESOURCE_GROUP")
 REGISTRY = os.getenv("AZURE_REGISTRY")
 CONTAINER_APPS_ENVIRONMENT_NAME = os.getenv("AZURE_CONTAINER_APPS_ENVIRONMENT_NAME")
+IDENTITY_NAME = os.getenv("AZURE_IDENTITY_NAME")
 TAG = os.getenv("TAG", "latest")
+
+APP_BICEP = Path(__file__).parent.parent / "infra" / "core" / "host" / "app.bicep"
 
 APP_ENV_VARS = {
     "AZURE_SEARCH_ENDPOINT": os.getenv("AZURE_SEARCH_ENDPOINT"),
@@ -44,93 +48,68 @@ SERVICES = [
         "app_name": "shopping-chat",
         "image": "shopping-chat",
         "port": 8080,
-        "ingress": "external",
+        "external": True,
     },
     {
         "app_name": "promotion-ingestion",
         "image": "promotion-ingestion",
         "port": 8081,
-        "ingress": None,
+        "external": False,
     },
     {
         "app_name": "shopping-agent",
         "image": "shopping-agent",
         "port": 8090,
-        "ingress": "external",
+        "external": True,
     },
 ]
 
 
 def run(cmd: list[str]) -> None:
     print(f"$ {' '.join(cmd)}")
-    result = subprocess.run(cmd, check=True)
-    if result.returncode != 0:
-        sys.exit(result.returncode)
+    subprocess.run(cmd, check=True)
 
 
-def exists_container_app(name: str) -> bool:
-    result = subprocess.run(
-        ["az", "containerapp", "show", "--name", name, "--resource-group", RESOURCE_GROUP],
-        check=False,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
+def registry_name(login_server: str) -> str:
+    """Strip .azurecr.io to get the bare ACR resource name."""
+    return login_server.removesuffix(".azurecr.io")
+
+
+def env_json() -> str:
+    return json.dumps(
+        [{"name": k, "value": v} for k, v in APP_ENV_VARS.items() if v]
     )
-    return result.returncode == 0
-
-
-def env_pairs() -> list[str]:
-    return [f"{key}={value}" for key, value in APP_ENV_VARS.items() if value]
 
 
 def deploy() -> None:
-    if not RESOURCE_GROUP or not REGISTRY or not CONTAINER_APPS_ENVIRONMENT_NAME:
+    if not RESOURCE_GROUP or not REGISTRY or not CONTAINER_APPS_ENVIRONMENT_NAME or not IDENTITY_NAME:
         print(
-            "ERROR: AZURE_RESOURCE_GROUP, AZURE_REGISTRY and "
-            "AZURE_CONTAINER_APPS_ENVIRONMENT_NAME must be set.",
+            "ERROR: AZURE_RESOURCE_GROUP, AZURE_REGISTRY, "
+            "AZURE_CONTAINER_APPS_ENVIRONMENT_NAME and AZURE_IDENTITY_NAME must be set.",
             file=sys.stderr,
         )
         sys.exit(1)
 
+    acr_name = registry_name(REGISTRY)
+    env_vars = env_json()
+
     for svc in SERVICES:
         image_ref = f"{REGISTRY}/{svc['image']}:{TAG}"
         print(f"\n==> Deploying {svc['app_name']} with image {image_ref}")
-        if exists_container_app(svc["app_name"]):
-            cmd = [
-                "az",
-                "containerapp",
-                "update",
-                "--name",
-                svc["app_name"],
-                "--resource-group",
-                RESOURCE_GROUP,
-                "--image",
-                image_ref,
-            ]
-            if env_pairs():
-                cmd.extend(["--set-env-vars", *env_pairs()])
-            run(cmd)
-            continue
-
-        cmd = [
-            "az",
-            "containerapp",
-            "create",
-            "--name",
-            svc["app_name"],
-            "--resource-group",
-            RESOURCE_GROUP,
-            "--environment",
-            CONTAINER_APPS_ENVIRONMENT_NAME,
-            "--registry-server",
-            REGISTRY,
-            "--image",
-            image_ref,
-        ]
-        if svc["ingress"]:
-            cmd.extend(["--ingress", svc["ingress"], "--target-port", str(svc["port"])])
-        if env_pairs():
-            cmd.extend(["--env-vars", *env_pairs()])
-        run(cmd)
+        run([
+            "az", "deployment", "group", "create",
+            "--resource-group", RESOURCE_GROUP,
+            "--template-file", str(APP_BICEP),
+            "--parameters",
+            f"name={svc['app_name']}",
+            f"containerAppsEnvironmentName={CONTAINER_APPS_ENVIRONMENT_NAME}",
+            f"containerRegistryName={acr_name}",
+            f"identityName={IDENTITY_NAME}",
+            f"imageName={image_ref}",
+            f"targetPort={svc['port']}",
+            f"external={'true' if svc['external'] else 'false'}",
+            f"envJson={env_vars}",
+        ])
 
     if os.getenv("AZURE_AI_PROJECT_ENDPOINT") and os.getenv("AZURE_CONTAINER_REGISTRY_ENDPOINT"):
         print("\n==> Deploying hosted agents from source code")

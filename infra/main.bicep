@@ -1,477 +1,198 @@
-param location string = resourceGroup().location
-param environmentName string = 'agentic-supply-chain'
-param searchSku string = 'basic'
+targetScope = 'subscription'
+
+@minLength(1)
+@maxLength(64)
+@description('Name of the environment that can be used as part of naming resource convention')
+param environmentName string
+
+@minLength(1)
+@maxLength(90)
+@description('Name of the resource group to use or create')
+param resourceGroupName string = 'rg-${environmentName}'
+
+@minLength(1)
+@description('Primary location for all resources')
+@allowed([
+  'australiaeast'
+  'brazilsouth'
+  'canadacentral'
+  'canadaeast'
+  'eastus'
+  'eastus2'
+  'francecentral'
+  'germanywestcentral'
+  'italynorth'
+  'japaneast'
+  'koreacentral'
+  'northcentralus'
+  'norwayeast'
+  'polandcentral'
+  'southafricanorth'
+  'southcentralus'
+  'southeastasia'
+  'southindia'
+  'spaincentral'
+  'swedencentral'
+  'switzerlandnorth'
+  'uaenorth'
+  'uksouth'
+  'westus'
+  'westus2'
+  'westus3'
+])
+param location string
+
+@metadata({azd: {
+  type: 'location'
+  usageName: [
+    'OpenAI.GlobalStandard.gpt-4.1-mini,10'
+  ]}
+})
+param aiDeploymentsLocation string
+
+@description('Id of the user or app to assign application roles')
+param principalId string
+
+@description('Principal type of user or app')
+param principalType string
+
+@description('Optional. Name of an existing AI Services account within the resource group.')
+param aiFoundryResourceName string = ''
+
+@description('Optional. Name of the AI Foundry project.')
+param aiFoundryProjectName string = 'ai-project-${environmentName}'
+
+@description('Search index name used for the product catalog indexes')
 param searchIndexName string = 'offers-index'
+
+@description('Name of the chat model deployment to use')
 param chatModelDeploymentName string = 'gpt-4.1-mini'
+
+@description('Name of the embedding model deployment to use')
 param embeddingModelDeploymentName string = 'text-embedding-3-small'
+
+@description('OpenAI API version used by the hosted apps')
 param openAiApiVersion string = '2024-05-01-preview'
-@description('Optional Azure AI Foundry project endpoint for hosted-agent deployment.')
-param aiProjectEndpoint string = ''
-@description('Optional Azure AI Foundry project ARM resource id for hosted-agent RBAC.')
-param aiProjectId string = ''
-@description('Optional Azure AI Foundry project name.')
-param aiProjectName string = ''
 
-var shoppingChatName = 'shopping-chat'
-var promotionIngestionName = 'promotion-ingestion'
-var shoppingAgentName = 'shopping-agent'
-var containerImageBootstrap = 'mcr.microsoft.com/k8se/quickstart:latest'
-var acrPullRoleDefinitionId = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d')
+@description('List of model deployments')
+param aiProjectDeploymentsJson string = '[{"name":"gpt-4.1-mini","model":{"name":"gpt-4.1-mini","format":"OpenAI","version":"2025-04-14"},"sku":{"name":"GlobalStandard","capacity":10}},{"name":"text-embedding-3-small","model":{"name":"text-embedding-3-small","format":"OpenAI","version":"1"},"sku":{"name":"Standard","capacity":10}}]'
 
-resource searchService 'Microsoft.Search/searchServices@2023-11-01' = {
-  name: '${environmentName}-search'
+@description('List of connections')
+param aiProjectConnectionsJson string = '[]'
+
+@description('List of resources to create and connect to the AI project')
+param aiProjectDependentResourcesJson string = '[]'
+
+var aiProjectDeployments = json(aiProjectDeploymentsJson)
+var aiProjectConnections = json(aiProjectConnectionsJson)
+var aiProjectDependentResources = json(aiProjectDependentResourcesJson)
+
+@description('Enable hosted agent deployment')
+param enableHostedAgents bool
+
+@description('Enable monitoring for the AI project')
+param enableMonitoring bool = true
+
+var tags = {
+  'azd-env-name': environmentName
+}
+
+resource rg 'Microsoft.Resources/resourceGroups@2021-04-01' = {
+  name: resourceGroupName
   location: location
-  sku: {
-    name: searchSku
+  tags: tags
+}
+
+// Add ACR if hosted agents are enabled
+var hasAcr = contains(map(aiProjectDependentResources, r => r.resource), 'registry')
+var dependentResources = (enableHostedAgents) && !hasAcr ? union(aiProjectDependentResources, [
+  {
+    resource: 'registry'
+    connectionName: 'acr-connection'
   }
-  properties: {
-    publicNetworkAccess: 'enabled'
-    replicaCount: 1
-    partitionCount: 1
-    hostingMode: 'default'
+]) : aiProjectDependentResources
+
+module aiProject 'core/ai/ai-project.bicep' = {
+  scope: rg
+  name: 'ai-project'
+  params: {
+    tags: tags
+    location: aiDeploymentsLocation
+    aiFoundryProjectName: aiFoundryProjectName
+    principalId: principalId
+    principalType: principalType
+    existingAiAccountName: aiFoundryResourceName
+    deployments: aiProjectDeployments
+    connections: aiProjectConnections
+    additionalDependentResources: dependentResources
+    enableMonitoring: enableMonitoring
+    enableHostedAgents: enableHostedAgents
   }
 }
 
-resource logAnalytics 'Microsoft.OperationalInsights/workspaces@2023-09-01' = {
-  name: '${environmentName}-law'
-  location: location
-  properties: {
-    sku: {
-      name: 'PerGB2018'
-    }
-    retentionInDays: 30
+module vnet 'core/host/vnet.bicep' = {
+  scope: rg
+  name: 'vnet'
+  params: {
+    location: location
   }
 }
 
-resource appInsights 'Microsoft.Insights/components@2020-02-02' = {
-  name: '${environmentName}-appi'
-  location: location
-  kind: 'web'
-  properties: {
-    Application_Type: 'web'
-    WorkspaceResourceId: logAnalytics.id
+module identity 'core/host/identity.bicep' = {
+  scope: rg
+  name: 'identity'
+  params: {
+    name: 'id-${environmentName}'
+    location: location
+    tags: tags
   }
 }
 
-resource containerRegistry 'Microsoft.ContainerRegistry/registries@2023-07-01' = {
-  name: '${replace(environmentName, '-', '')}acr'
-  location: location
-  sku: {
-    name: 'Basic'
+module containerAppsEnv 'core/host/container-apps-environment.bicep' = {
+  scope: rg
+  name: 'container-apps-environment'
+  params: {
+    name: 'cae-${environmentName}'
+    location: location
+    tags: tags
+    logAnalyticsWorkspaceName: aiProject.outputs.logAnalyticsWorkspaceName
   }
-  properties: {
-    adminUserEnabled: true
-  }
+  dependsOn: [
+    vnet
+  ]
 }
 
-resource openAi 'Microsoft.CognitiveServices/accounts@2023-05-01' = {
-  name: '${environmentName}-aoai'
-  location: location
-  kind: 'OpenAI'
-  sku: {
-    name: 'S0'
-  }
-  properties: {
-    customSubDomainName: '${replace(environmentName, '-', '')}aoai'
-    publicNetworkAccess: 'Enabled'
-  }
-}
-
-resource chatModelDeployment 'Microsoft.CognitiveServices/accounts/deployments@2023-05-01' = {
-  parent: openAi
-  name: chatModelDeploymentName
-  sku: {
-    name: 'GlobalStandard'
-    capacity: 10
-  }
-  properties: {
-    model: {
-      format: 'OpenAI'
-      name: 'gpt-4.1-mini'
-      version: '2025-04-14'
-    }
-    scaleSettings: {
-      scaleType: 'Standard'
-    }
-  }
-}
-
-resource embeddingModelDeployment 'Microsoft.CognitiveServices/accounts/deployments@2023-05-01' = {
-  parent: openAi
-  name: embeddingModelDeploymentName
-  sku: {
-    name: 'Standard'
-    capacity: 10
-  }
-  properties: {
-    model: {
-      format: 'OpenAI'
-      name: 'text-embedding-3-small'
-      version: '1'
-    }
-    scaleSettings: {
-      scaleType: 'Standard'
-    }
-  }
-}
-
-resource containerEnvironment 'Microsoft.App/managedEnvironments@2023-05-01' = {
-  name: '${environmentName}-cae'
-  location: location
-  properties: {
-    appLogsConfiguration: {
-      destination: 'log-analytics'
-      logAnalyticsConfiguration: {
-        customerId: logAnalytics.properties.customerId
-        sharedKey: listKeys(logAnalytics.id, '2023-09-01').primarySharedKey
-      }
-    }
-  }
-}
-
-resource shoppingChatApp 'Microsoft.App/containerApps@2023-05-01' = {
-  name: shoppingChatName
-  location: location
-  identity: {
-    type: 'SystemAssigned'
-  }
-  properties: {
-    managedEnvironmentId: containerEnvironment.id
-    configuration: {
-      ingress: {
-        external: true
-        targetPort: 8080
-        transport: 'auto'
-      }
-      activeRevisionsMode: 'Single'
-      registries: [
-        {
-          server: containerRegistry.properties.loginServer
-          identity: 'system'
-        }
-      ]
-      secrets: [
-        {
-          name: 'azure-search-admin-key'
-          value: listAdminKeys(searchService.id, '2023-11-01').primaryKey
-        }
-      ]
-    }
-    template: {
-      containers: [
-        {
-          name: shoppingChatName
-          image: containerImageBootstrap
-          resources: {
-            cpu: json('0.5')
-            memory: '1Gi'
-          }
-          env: [
-            {
-              name: 'AZURE_SEARCH_ENDPOINT'
-              value: 'https://${searchService.name}.search.windows.net'
-            }
-            {
-              name: 'AZURE_SEARCH_INDEX_NAME'
-              value: searchIndexName
-            }
-            {
-              name: 'AZURE_SEARCH_ADMIN_KEY'
-              secretRef: 'azure-search-admin-key'
-            }
-            {
-              name: 'APPLICATIONINSIGHTS_CONNECTION_STRING'
-              value: appInsights.properties.ConnectionString
-            }
-            {
-              name: 'AZURE_OPENAI_ENDPOINT'
-              value: openAi.properties.endpoint
-            }
-            {
-              name: 'AZURE_AI_PROJECT_ENDPOINT'
-              value: aiProjectEndpoint
-            }
-            {
-              name: 'AZURE_AI_PROJECT_ID'
-              value: aiProjectId
-            }
-            {
-              name: 'AZURE_AI_PROJECT_NAME'
-              value: aiProjectName
-            }
-            {
-              name: 'AZURE_AI_MODEL_DEPLOYMENT_NAME'
-              value: chatModelDeploymentName
-            }
-            {
-              name: 'AZURE_OPENAI_CHAT_DEPLOYMENT_NAME'
-              value: chatModelDeploymentName
-            }
-            {
-              name: 'AZURE_OPENAI_EMBEDDING_DEPLOYMENT_NAME'
-              value: embeddingModelDeploymentName
-            }
-            {
-              name: 'OPENAI_API_VERSION'
-              value: openAiApiVersion
-            }
-          ]
-        }
-      ]
-      scale: {
-        minReplicas: 1
-        maxReplicas: 3
-      }
-    }
-  }
-}
-
-resource promotionIngestionApp 'Microsoft.App/containerApps@2023-05-01' = {
-  name: promotionIngestionName
-  location: location
-  identity: {
-    type: 'SystemAssigned'
-  }
-  properties: {
-    managedEnvironmentId: containerEnvironment.id
-    configuration: {
-      ingress: {
-        external: false
-        targetPort: 8081
-        transport: 'auto'
-      }
-      activeRevisionsMode: 'Single'
-      registries: [
-        {
-          server: containerRegistry.properties.loginServer
-          identity: 'system'
-        }
-      ]
-      secrets: [
-        {
-          name: 'azure-search-admin-key'
-          value: listAdminKeys(searchService.id, '2023-11-01').primaryKey
-        }
-      ]
-    }
-    template: {
-      containers: [
-        {
-          name: promotionIngestionName
-          image: containerImageBootstrap
-          resources: {
-            cpu: json('0.5')
-            memory: '1Gi'
-          }
-          env: [
-            {
-              name: 'AZURE_SEARCH_ENDPOINT'
-              value: 'https://${searchService.name}.search.windows.net'
-            }
-            {
-              name: 'AZURE_SEARCH_INDEX_NAME'
-              value: searchIndexName
-            }
-            {
-              name: 'AZURE_SEARCH_ADMIN_KEY'
-              secretRef: 'azure-search-admin-key'
-            }
-            {
-              name: 'APPLICATIONINSIGHTS_CONNECTION_STRING'
-              value: appInsights.properties.ConnectionString
-            }
-            {
-              name: 'AZURE_OPENAI_ENDPOINT'
-              value: openAi.properties.endpoint
-            }
-            {
-              name: 'AZURE_AI_PROJECT_ENDPOINT'
-              value: aiProjectEndpoint
-            }
-            {
-              name: 'AZURE_AI_PROJECT_ID'
-              value: aiProjectId
-            }
-            {
-              name: 'AZURE_AI_PROJECT_NAME'
-              value: aiProjectName
-            }
-            {
-              name: 'AZURE_AI_MODEL_DEPLOYMENT_NAME'
-              value: chatModelDeploymentName
-            }
-            {
-              name: 'AZURE_OPENAI_CHAT_DEPLOYMENT_NAME'
-              value: chatModelDeploymentName
-            }
-            {
-              name: 'AZURE_OPENAI_EMBEDDING_DEPLOYMENT_NAME'
-              value: embeddingModelDeploymentName
-            }
-            {
-              name: 'OPENAI_API_VERSION'
-              value: openAiApiVersion
-            }
-          ]
-        }
-      ]
-      scale: {
-        minReplicas: 0
-        maxReplicas: 2
-      }
-    }
-  }
-}
-
-resource shoppingAgentApp 'Microsoft.App/containerApps@2023-05-01' = {
-  name: shoppingAgentName
-  location: location
-  identity: {
-    type: 'SystemAssigned'
-  }
-  properties: {
-    managedEnvironmentId: containerEnvironment.id
-    configuration: {
-      ingress: {
-        external: true
-        targetPort: 8090
-        transport: 'auto'
-      }
-      activeRevisionsMode: 'Single'
-      registries: [
-        {
-          server: containerRegistry.properties.loginServer
-          identity: 'system'
-        }
-      ]
-      secrets: [
-        {
-          name: 'azure-search-admin-key'
-          value: listAdminKeys(searchService.id, '2023-11-01').primaryKey
-        }
-      ]
-    }
-    template: {
-      containers: [
-        {
-          name: shoppingAgentName
-          image: containerImageBootstrap
-          resources: {
-            cpu: json('0.5')
-            memory: '1Gi'
-          }
-          env: [
-            {
-              name: 'AZURE_SEARCH_ENDPOINT'
-              value: 'https://${searchService.name}.search.windows.net'
-            }
-            {
-              name: 'AZURE_SEARCH_INDEX_NAME'
-              value: searchIndexName
-            }
-            {
-              name: 'AZURE_SEARCH_ADMIN_KEY'
-              secretRef: 'azure-search-admin-key'
-            }
-            {
-              name: 'APPLICATIONINSIGHTS_CONNECTION_STRING'
-              value: appInsights.properties.ConnectionString
-            }
-            {
-              name: 'AZURE_OPENAI_ENDPOINT'
-              value: openAi.properties.endpoint
-            }
-            {
-              name: 'AZURE_AI_PROJECT_ENDPOINT'
-              value: aiProjectEndpoint
-            }
-            {
-              name: 'AZURE_AI_PROJECT_ID'
-              value: aiProjectId
-            }
-            {
-              name: 'AZURE_AI_PROJECT_NAME'
-              value: aiProjectName
-            }
-            {
-              name: 'AZURE_AI_MODEL_DEPLOYMENT_NAME'
-              value: chatModelDeploymentName
-            }
-            {
-              name: 'AZURE_OPENAI_CHAT_DEPLOYMENT_NAME'
-              value: chatModelDeploymentName
-            }
-            {
-              name: 'AZURE_OPENAI_EMBEDDING_DEPLOYMENT_NAME'
-              value: embeddingModelDeploymentName
-            }
-            {
-              name: 'OPENAI_API_VERSION'
-              value: openAiApiVersion
-            }
-          ]
-        }
-      ]
-      scale: {
-        minReplicas: 1
-        maxReplicas: 3
-      }
-    }
-  }
-}
-
-resource shoppingChatAcrPull 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(containerRegistry.id, shoppingChatApp.name, acrPullRoleDefinitionId)
-  scope: containerRegistry
-  properties: {
-    roleDefinitionId: acrPullRoleDefinitionId
-    principalId: shoppingChatApp.identity.principalId
-    principalType: 'ServicePrincipal'
-  }
-}
-
-resource promotionIngestionAcrPull 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(containerRegistry.id, promotionIngestionApp.name, acrPullRoleDefinitionId)
-  scope: containerRegistry
-  properties: {
-    roleDefinitionId: acrPullRoleDefinitionId
-    principalId: promotionIngestionApp.identity.principalId
-    principalType: 'ServicePrincipal'
-  }
-}
-
-resource shoppingAgentAcrPull 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(containerRegistry.id, shoppingAgentApp.name, acrPullRoleDefinitionId)
-  scope: containerRegistry
-  properties: {
-    roleDefinitionId: acrPullRoleDefinitionId
-    principalId: shoppingAgentApp.identity.principalId
-    principalType: 'ServicePrincipal'
-  }
-}
-
-output searchServiceName string = searchService.name
-output searchEndpoint string = 'https://${searchService.name}.search.windows.net'
-output AZURE_SEARCH_ENDPOINT string = 'https://${searchService.name}.search.windows.net'
+output AZURE_AI_PROJECT_ID string = aiProject.outputs.projectId
+output AZURE_AI_PROJECT_NAME string = aiProject.outputs.projectName
+output AZURE_AI_PROJECT_ENDPOINT string = aiProject.outputs.AZURE_AI_PROJECT_ENDPOINT
+output AZURE_OPENAI_ENDPOINT string = aiProject.outputs.AZURE_OPENAI_ENDPOINT
+output APPLICATIONINSIGHTS_CONNECTION_STRING string = aiProject.outputs.APPLICATIONINSIGHTS_CONNECTION_STRING
+output AZURE_SEARCH_ENDPOINT string = aiProject.outputs.dependentResources.search.endpoint
 output AZURE_SEARCH_INDEX_NAME string = searchIndexName
-output AZURE_SEARCH_ADMIN_KEY string = listAdminKeys(searchService.id, '2023-11-01').primaryKey
-output APPLICATIONINSIGHTS_CONNECTION_STRING string = appInsights.properties.ConnectionString
-output AZURE_CONTAINER_REGISTRY_ENDPOINT string = containerRegistry.properties.loginServer
-output AZURE_REGISTRY string = containerRegistry.properties.loginServer
-output AZURE_RESOURCE_GROUP string = resourceGroup().name
-output AZURE_LOCATION string = location
-output AZURE_CONTAINER_APPS_ENVIRONMENT_ID string = containerEnvironment.id
-output AZURE_CONTAINER_APPS_ENVIRONMENT_NAME string = containerEnvironment.name
-output AZURE_OPENAI_ENDPOINT string = openAi.properties.endpoint
-output AZURE_AI_PROJECT_ENDPOINT string = aiProjectEndpoint
-output AZURE_AI_PROJECT_ID string = aiProjectId
-output AZURE_AI_PROJECT_NAME string = aiProjectName
+output AZURE_SEARCH_ADMIN_KEY string = aiProject.outputs.dependentResources.search.adminKey
 output AZURE_AI_MODEL_DEPLOYMENT_NAME string = chatModelDeploymentName
 output AZURE_OPENAI_CHAT_DEPLOYMENT_NAME string = chatModelDeploymentName
 output AZURE_OPENAI_EMBEDDING_DEPLOYMENT_NAME string = embeddingModelDeploymentName
 output OPENAI_API_VERSION string = openAiApiVersion
-output SHOPPING_CHAT_CONTAINER_APP_NAME string = shoppingChatApp.name
-output SHOPPING_AGENT_CONTAINER_APP_NAME string = shoppingAgentApp.name
-output PROMOTION_INGESTION_CONTAINER_APP_NAME string = promotionIngestionApp.name
-output SHOPPING_CHAT_URL string = 'https://${shoppingChatApp.properties.configuration.ingress.fqdn}'
-output SHOPPING_AGENT_URL string = 'https://${shoppingAgentApp.properties.configuration.ingress.fqdn}'
+
+// ACR (for hosted agents)
+output AZURE_CONTAINER_REGISTRY_ENDPOINT string = aiProject.outputs.dependentResources.registry.loginServer
+output AZURE_REGISTRY string = aiProject.outputs.dependentResources.registry.loginServer
+
+output AZURE_RESOURCE_GROUP string = resourceGroupName
+output AZURE_LOCATION string = location
+
+// Container Apps
+output AZURE_CONTAINER_APPS_ENVIRONMENT_NAME string = containerAppsEnv.outputs.name
+output AZURE_CONTAINER_APPS_ENVIRONMENT_ID string = containerAppsEnv.outputs.id
+output AZURE_IDENTITY_NAME string = identity.outputs.identityName
+
+// Bing Custom Search (for support-hotline web research)
+output BING_CUSTOM_GROUNDING_CONNECTION_NAME string = aiProject.outputs.dependentResources.bing_custom_grounding.connectionName
+output BING_CUSTOM_GROUNDING_NAME string = aiProject.outputs.dependentResources.bing_custom_grounding.name
+output BING_CUSTOM_GROUNDING_CONNECTION_ID string = aiProject.outputs.dependentResources.bing_custom_grounding.connectionId
+output BING_CUSTOM_GROUNDING_CONFIG_INSTANCE_NAME string = aiProject.outputs.dependentResources.bing_custom_grounding.configInstanceName
+
+// Azure AI Search (for product-guide vector search)
+output AZURE_AI_SEARCH_CONNECTION_NAME string = aiProject.outputs.dependentResources.search.connectionName
+output AZURE_AI_SEARCH_SERVICE_NAME string = aiProject.outputs.dependentResources.search.serviceName

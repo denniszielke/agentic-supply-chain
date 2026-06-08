@@ -1,24 +1,51 @@
 {
-  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
-  "contentVersion": "1.0.0.0",
-  "parameters": {
-    "environmentName": {
-      "value": "${AZURE_ENV_NAME}"
-    },
-    "location": {
-      "value": "${AZURE_LOCATION}"
-    },
-    "searchIndexName": {
-      "value": "${AZURE_SEARCH_INDEX_NAME=offers-index}"
-    },
-    "aiProjectEndpoint": {
-      "value": "${AZURE_AI_PROJECT_ENDPOINT=}"
-    },
-    "aiProjectId": {
-      "value": "${AZURE_AI_PROJECT_ID=}"
-    },
-    "aiProjectName": {
-      "value": "${AZURE_AI_PROJECT_NAME=}"
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+      "resourceGroupName": {
+        "value": "${AZURE_RESOURCE_GROUP}"
+      },
+      "environmentName": {
+        "value": "${AZURE_ENV_NAME}"
+      },
+      "location": {
+        "value": "${AZURE_LOCATION}"
+      },
+      "searchIndexName": {
+        "value": "${AZURE_SEARCH_INDEX_NAME=offers-index}"
+      },
+      "chatModelDeploymentName": {
+        "value": "${AZURE_AI_MODEL_DEPLOYMENT_NAME=gpt-4.1-mini}"
+      },
+      "embeddingModelDeploymentName": {
+        "value": "${AZURE_OPENAI_EMBEDDING_DEPLOYMENT_NAME=text-embedding-3-small}"
+      },
+      "openAiApiVersion": {
+        "value": "${OPENAI_API_VERSION=2024-05-01-preview}"
+      },
+      "aiFoundryResourceName": {
+        "value": "${AZURE_AI_ACCOUNT_NAME}"
+      },
+      "aiFoundryProjectName": {
+        "value": "${AZURE_AI_PROJECT_NAME}"
+      },
+      "aiDeploymentsLocation": {
+        "value": "${AZURE_LOCATION}"
+      },
+      "principalId": {
+        "value": "${AZURE_PRINCIPAL_ID}"
+      },
+      "principalType": {
+        "value": "${AZURE_PRINCIPAL_TYPE}"
+      },
+      "aiProjectConnectionsJson": {
+        "value": "${AI_PROJECT_CONNECTIONS=[]}"
+      },
+      "enableMonitoring": {
+        "value": "${ENABLE_MONITORING=true}"
+      },
+      "enableHostedAgents": {
+        "value": "${ENABLE_HOSTED_AGENTS=true}"
+      }
     }
-  }
 }

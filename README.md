@@ -37,20 +37,25 @@ Full schema: [`infra/search-schema.json`](infra/search-schema.json)
 agentic-supply-chain/
 ├── azure.yaml                    # azd configuration
 ├── infra/
-│   ├── main.bicep                # Azure resource definitions
+│   ├── main.bicep                # Top-level subscription-scoped deployment
 │   ├── main.parameters.json
-│   └── search-schema.json        # Azure AI Search vector index schema
+│   ├── search-schema.json        # Azure AI Search vector index schema
+│   └── core/
+│       ├── ai/                   # AI Foundry account, project, connections
+│       ├── host/                 # VNet, Container Apps environment, ACR, identity, app
+│       ├── monitor/              # Log Analytics, Application Insights
+│       └── search/               # Azure AI Search, Bing grounding
 ├── src/
 │   ├── shared/                   # Pydantic models, planner, seed data
 │   ├── shopping_chat/            # MCP app + UI  →  see src/shopping_chat/README.md
 │   ├── promotion_ingestion/      # Flyer indexer  →  see src/promotion_ingestion/README.md
 │   └── shopping_agent/           # A2A planning agent  →  see src/shopping_agent/README.md
 ├── scripts/
-│   ├── build_containers.sh       # Build (and optionally push) all Docker images
+│   ├── build_containers.sh       # Build all images via az acr build
 │   ├── create_index.py           # Create / update Azure AI Search index
 │   ├── delete_index.py           # Delete Azure AI Search index
-│   ├── deploy_agents.py          # Deploy all Container Apps to Azure
-│   ├── delete_agents.py          # Delete all Container Apps from Azure
+│   ├── deploy_agents.py          # Deploy Container Apps via app.bicep
+│   ├── delete_agents.py          # Delete all Container Apps
 │   └── search_index_pipeline.py  # Lower-level index helper (used by deploy_assets.py)
 └── tests/
     ├── test_catalog.py
@@ -64,65 +69,114 @@ agentic-supply-chain/
 ### Prerequisites
 
 - [Azure Developer CLI (azd)](https://aka.ms/azd)
+- [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli)
 - Python 3.12+
-- Docker (for container builds)
-- Azure CLI (for post-provision scripts)
 
-### 1. Provision Azure infrastructure
+---
+
+## Step 1 — Provision infrastructure
+
+This step creates all long-lived Azure resources: AI Foundry project, Azure AI Search, Container Apps environment, VNet, ACR, and the user-assigned managed identity used by every container app.
 
 ```bash
 azd up
 ```
 
-This provisions all core runtime dependencies from `infra/main.bicep`, including:
+Resources provisioned by `infra/main.bicep`:
 
-- Azure Container Apps environment
-- Azure Container Registry (ACR)
-- Azure AI Search
-- Azure OpenAI account with model deployments (`gpt-4.1-mini`, `text-embedding-3-small`)
-- Log Analytics + Application Insights
-- Bootstrap Container Apps for `shopping-chat`, `promotion-ingestion`, and `shopping-agent`
-- Optional Azure AI Foundry project environment variables for hosted-agent deployment (`AZURE_AI_PROJECT_ENDPOINT`, `AZURE_AI_PROJECT_ID`, `AZURE_AI_PROJECT_NAME`)
+| Resource | Naming |
+|---|---|
+| Resource group | `rg-<AZURE_ENV_NAME>` |
+| VNet + subnets | `vnet-rg-<AZURE_ENV_NAME>` |
+| Container Apps environment | `cae-<AZURE_ENV_NAME>` |
+| Azure Container Registry | discovered from resource group |
+| User-assigned managed identity | `id-<AZURE_ENV_NAME>` |
+| Azure AI Foundry account + project | `ai-project-<AZURE_ENV_NAME>` |
+| Azure AI Search service | `search-<token>` |
+| Log Analytics + Application Insights | `logs-<token>` / `appi-<token>` |
 
-### 2. Create the search index
+After `azd up` completes, azd writes all infra outputs to `.azure/<AZURE_ENV_NAME>/.env`.
+The `postdeploy` hook copies this automatically to `./.env`, making the following variables available for subsequent steps:
 
-After `azd up`, azd writes all infra outputs to `.azure/<env-name>/.env`.
-The project `postdeploy` hook copies this to `./.env`, so variables such as
-`AZURE_SEARCH_ENDPOINT`, `AZURE_SEARCH_INDEX_NAME`, `AZURE_SEARCH_ADMIN_KEY`,
-`AZURE_OPENAI_ENDPOINT`, `AZURE_AI_MODEL_DEPLOYMENT_NAME`,
-`AZURE_CONTAINER_REGISTRY_ENDPOINT`, `AZURE_REGISTRY`, and
-`APPLICATIONINSIGHTS_CONNECTION_STRING` are available automatically.
+```
+AZURE_RESOURCE_GROUP
+AZURE_LOCATION
+AZURE_IDENTITY_NAME
+AZURE_CONTAINER_APPS_ENVIRONMENT_NAME
+AZURE_CONTAINER_APPS_ENVIRONMENT_ID
+AZURE_CONTAINER_REGISTRY_ENDPOINT
+AZURE_REGISTRY
+AZURE_SEARCH_ENDPOINT
+AZURE_SEARCH_INDEX_NAME
+AZURE_SEARCH_ADMIN_KEY
+AZURE_OPENAI_ENDPOINT
+AZURE_AI_PROJECT_ENDPOINT
+AZURE_AI_PROJECT_ID
+AZURE_AI_PROJECT_NAME
+AZURE_AI_MODEL_DEPLOYMENT_NAME
+AZURE_OPENAI_CHAT_DEPLOYMENT_NAME
+AZURE_OPENAI_EMBEDDING_DEPLOYMENT_NAME
+OPENAI_API_VERSION
+APPLICATIONINSIGHTS_CONNECTION_STRING
+```
 
-Then run:
+### 1a. Create the search index
 
 ```bash
 python scripts/create_index.py
 ```
 
-### 3. Build and push container images
+---
+
+## Step 2 — Build containers and deploy
+
+This step builds the container images in ACR and deploys each service as a Container App. It can be repeated independently whenever source code changes — no re-provisioning required.
+
+### 2a. Build container images
+
+Uses `az acr build` to build directly in the cloud — no local Docker required.
 
 ```bash
-export AZURE_REGISTRY="<your-registry>.azurecr.io"
-./scripts/build_containers.sh "${AZURE_REGISTRY}" latest
+# Reads AZURE_ENV_NAME to locate the ACR in rg-<AZURE_ENV_NAME>
+./scripts/build_containers.sh "${AZURE_ENV_NAME}"
 ```
 
-### 4. Deploy agents to Azure Container Apps (and optional hosted agents)
+The script prints the registry name and image tag on completion, e.g.:
+
+```
+Registry: myregistry.azurecr.io, Tag: 0608120000
+```
+
+Set `TAG` to that value before deploying:
 
 ```bash
-export AZURE_RESOURCE_GROUP="<resource-group>"
-export AZURE_REGISTRY="<your-registry>.azurecr.io"
-export AZURE_CONTAINER_APPS_ENVIRONMENT_NAME="<container-apps-environment-name>"
+export TAG=0608120000
+```
+
+### 2b. Deploy Container Apps
+
+Deploys (or re-deploys) `shopping-chat`, `promotion-ingestion`, and `shopping-agent` using `infra/core/host/app.bicep` via `az deployment group create`. Each app is assigned the shared user-managed identity for ACR pull access.
+
+```bash
+# All variables are sourced from .env (written by azd) — set TAG explicitly
+export TAG=0608120000
+
 python scripts/deploy_agents.py
 ```
 
-`scripts/deploy_agents.py` is idempotent: it updates existing apps and creates
-missing ones directly from agent/container code when needed.
+Required variables (all populated automatically from `.env` after `azd up`):
 
-If `AZURE_AI_PROJECT_ENDPOINT` and `AZURE_CONTAINER_REGISTRY_ENDPOINT` are set,
-the same command also builds and deploys a hosted agent version from source code
-via `scripts/deploy_hosted_agents.py`.
+| Variable | Description |
+|---|---|
+| `AZURE_RESOURCE_GROUP` | Target resource group |
+| `AZURE_REGISTRY` | ACR login server, e.g. `myregistry.azurecr.io` |
+| `AZURE_CONTAINER_APPS_ENVIRONMENT_NAME` | Container Apps environment name |
+| `AZURE_IDENTITY_NAME` | User-assigned managed identity name |
+| `TAG` | Image tag to deploy |
 
-### 5. Ingest a promotional flyer
+If `AZURE_AI_PROJECT_ENDPOINT` and `AZURE_CONTAINER_REGISTRY_ENDPOINT` are also set, the script additionally deploys a hosted agent via `scripts/deploy_hosted_agents.py`.
+
+### 2c. Ingest a promotional flyer
 
 ```bash
 python -m src.promotion_ingestion.job \
@@ -159,7 +213,7 @@ Delete search index:
 python scripts/delete_index.py
 ```
 
-Delete all Container App agents:
+Delete all Container Apps:
 
 ```bash
 export AZURE_RESOURCE_GROUP="<resource-group>"

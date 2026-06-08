@@ -28,7 +28,7 @@ def get_client() -> AIProjectClient:
 
 
 def build_image(registry: str, image_name: str, context_path: Path) -> str:
-    registry_name = registry.split(".")[0]
+    registry_name = registry.removesuffix(".azurecr.io")
     build_tag = datetime.now().strftime("%Y%m%d%H%M%S")
     image_tag = f"{registry}/{image_name}:{build_tag}"
     subprocess.run(
