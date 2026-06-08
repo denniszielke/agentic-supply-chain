@@ -1,0 +1,23 @@
+name: agentic-supply-chain
+metadata:
+  template: agentic-supply-chain@0.0.1
+services:
+  mcp-app:
+    project: ./src/mcp_app
+    host: containerapp
+    language: py
+  indexer-job:
+    project: ./src/indexer
+    host: containerapp
+    language: py
+  shopping-agent:
+    project: ./src/agent
+    host: containerapp
+    language: py
+infra:
+  provider: bicep
+  path: ./infra
+hooks:
+  postprovision:
+    shell: sh
+    run: python /tmp/workspace/denniszielke/agentic-supply-chain/tools/deploy_assets.py
