@@ -82,13 +82,15 @@ This provisions all core runtime dependencies from `infra/main.bicep`, including
 - Azure OpenAI account with model deployments (`gpt-4.1-mini`, `text-embedding-3-small`)
 - Log Analytics + Application Insights
 - Bootstrap Container Apps for `shopping-chat`, `promotion-ingestion`, and `shopping-agent`
+- Optional Azure AI Foundry project environment variables for hosted-agent deployment (`AZURE_AI_PROJECT_ENDPOINT`, `AZURE_AI_PROJECT_ID`, `AZURE_AI_PROJECT_NAME`)
 
 ### 2. Create the search index
 
 After `azd up`, azd writes all infra outputs to `.azure/<env-name>/.env`.
 The project `postdeploy` hook copies this to `./.env`, so variables such as
-`AZURE_SEARCH_ENDPOINT`, `AZURE_SEARCH_ADMIN_KEY`, `AZURE_OPENAI_ENDPOINT`,
-`AZURE_AI_MODEL_DEPLOYMENT_NAME`, `AZURE_REGISTRY`, and
+`AZURE_SEARCH_ENDPOINT`, `AZURE_SEARCH_INDEX_NAME`, `AZURE_SEARCH_ADMIN_KEY`,
+`AZURE_OPENAI_ENDPOINT`, `AZURE_AI_MODEL_DEPLOYMENT_NAME`,
+`AZURE_CONTAINER_REGISTRY_ENDPOINT`, `AZURE_REGISTRY`, and
 `APPLICATIONINSIGHTS_CONNECTION_STRING` are available automatically.
 
 Then run:
@@ -104,7 +106,7 @@ export AZURE_REGISTRY="<your-registry>.azurecr.io"
 ./scripts/build_containers.sh "${AZURE_REGISTRY}" latest
 ```
 
-### 4. Deploy agents to Azure Container Apps
+### 4. Deploy agents to Azure Container Apps (and optional hosted agents)
 
 ```bash
 export AZURE_RESOURCE_GROUP="<resource-group>"
@@ -115,6 +117,10 @@ python scripts/deploy_agents.py
 
 `scripts/deploy_agents.py` is idempotent: it updates existing apps and creates
 missing ones directly from agent/container code when needed.
+
+If `AZURE_AI_PROJECT_ENDPOINT` and `AZURE_CONTAINER_REGISTRY_ENDPOINT` are set,
+the same command also builds and deploys a hosted agent version from source code
+via `scripts/deploy_hosted_agents.py`.
 
 ### 5. Ingest a promotional flyer
 

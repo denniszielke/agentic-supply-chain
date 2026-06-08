@@ -1,9 +1,16 @@
 param location string = resourceGroup().location
 param environmentName string = 'agentic-supply-chain'
 param searchSku string = 'basic'
+param searchIndexName string = 'offers-index'
 param chatModelDeploymentName string = 'gpt-4.1-mini'
 param embeddingModelDeploymentName string = 'text-embedding-3-small'
 param openAiApiVersion string = '2024-05-01-preview'
+@description('Optional Azure AI Foundry project endpoint for hosted-agent deployment.')
+param aiProjectEndpoint string = ''
+@description('Optional Azure AI Foundry project ARM resource id for hosted-agent RBAC.')
+param aiProjectId string = ''
+@description('Optional Azure AI Foundry project name.')
+param aiProjectName string = ''
 
 var shoppingChatName = 'shopping-chat'
 var promotionIngestionName = 'promotion-ingestion'
@@ -165,6 +172,10 @@ resource shoppingChatApp 'Microsoft.App/containerApps@2023-05-01' = {
               value: 'https://${searchService.name}.search.windows.net'
             }
             {
+              name: 'AZURE_SEARCH_INDEX_NAME'
+              value: searchIndexName
+            }
+            {
               name: 'AZURE_SEARCH_ADMIN_KEY'
               secretRef: 'azure-search-admin-key'
             }
@@ -175,6 +186,18 @@ resource shoppingChatApp 'Microsoft.App/containerApps@2023-05-01' = {
             {
               name: 'AZURE_OPENAI_ENDPOINT'
               value: openAi.properties.endpoint
+            }
+            {
+              name: 'AZURE_AI_PROJECT_ENDPOINT'
+              value: aiProjectEndpoint
+            }
+            {
+              name: 'AZURE_AI_PROJECT_ID'
+              value: aiProjectId
+            }
+            {
+              name: 'AZURE_AI_PROJECT_NAME'
+              value: aiProjectName
             }
             {
               name: 'AZURE_AI_MODEL_DEPLOYMENT_NAME'
@@ -246,6 +269,10 @@ resource promotionIngestionApp 'Microsoft.App/containerApps@2023-05-01' = {
               value: 'https://${searchService.name}.search.windows.net'
             }
             {
+              name: 'AZURE_SEARCH_INDEX_NAME'
+              value: searchIndexName
+            }
+            {
               name: 'AZURE_SEARCH_ADMIN_KEY'
               secretRef: 'azure-search-admin-key'
             }
@@ -256,6 +283,18 @@ resource promotionIngestionApp 'Microsoft.App/containerApps@2023-05-01' = {
             {
               name: 'AZURE_OPENAI_ENDPOINT'
               value: openAi.properties.endpoint
+            }
+            {
+              name: 'AZURE_AI_PROJECT_ENDPOINT'
+              value: aiProjectEndpoint
+            }
+            {
+              name: 'AZURE_AI_PROJECT_ID'
+              value: aiProjectId
+            }
+            {
+              name: 'AZURE_AI_PROJECT_NAME'
+              value: aiProjectName
             }
             {
               name: 'AZURE_AI_MODEL_DEPLOYMENT_NAME'
@@ -327,6 +366,10 @@ resource shoppingAgentApp 'Microsoft.App/containerApps@2023-05-01' = {
               value: 'https://${searchService.name}.search.windows.net'
             }
             {
+              name: 'AZURE_SEARCH_INDEX_NAME'
+              value: searchIndexName
+            }
+            {
               name: 'AZURE_SEARCH_ADMIN_KEY'
               secretRef: 'azure-search-admin-key'
             }
@@ -337,6 +380,18 @@ resource shoppingAgentApp 'Microsoft.App/containerApps@2023-05-01' = {
             {
               name: 'AZURE_OPENAI_ENDPOINT'
               value: openAi.properties.endpoint
+            }
+            {
+              name: 'AZURE_AI_PROJECT_ENDPOINT'
+              value: aiProjectEndpoint
+            }
+            {
+              name: 'AZURE_AI_PROJECT_ID'
+              value: aiProjectId
+            }
+            {
+              name: 'AZURE_AI_PROJECT_NAME'
+              value: aiProjectName
             }
             {
               name: 'AZURE_AI_MODEL_DEPLOYMENT_NAME'
@@ -398,13 +453,19 @@ resource shoppingAgentAcrPull 'Microsoft.Authorization/roleAssignments@2022-04-0
 output searchServiceName string = searchService.name
 output searchEndpoint string = 'https://${searchService.name}.search.windows.net'
 output AZURE_SEARCH_ENDPOINT string = 'https://${searchService.name}.search.windows.net'
+output AZURE_SEARCH_INDEX_NAME string = searchIndexName
 output AZURE_SEARCH_ADMIN_KEY string = listAdminKeys(searchService.id, '2023-11-01').primaryKey
 output APPLICATIONINSIGHTS_CONNECTION_STRING string = appInsights.properties.ConnectionString
 output AZURE_CONTAINER_REGISTRY_ENDPOINT string = containerRegistry.properties.loginServer
 output AZURE_REGISTRY string = containerRegistry.properties.loginServer
+output AZURE_RESOURCE_GROUP string = resourceGroup().name
+output AZURE_LOCATION string = location
 output AZURE_CONTAINER_APPS_ENVIRONMENT_ID string = containerEnvironment.id
 output AZURE_CONTAINER_APPS_ENVIRONMENT_NAME string = containerEnvironment.name
 output AZURE_OPENAI_ENDPOINT string = openAi.properties.endpoint
+output AZURE_AI_PROJECT_ENDPOINT string = aiProjectEndpoint
+output AZURE_AI_PROJECT_ID string = aiProjectId
+output AZURE_AI_PROJECT_NAME string = aiProjectName
 output AZURE_AI_MODEL_DEPLOYMENT_NAME string = chatModelDeploymentName
 output AZURE_OPENAI_CHAT_DEPLOYMENT_NAME string = chatModelDeploymentName
 output AZURE_OPENAI_EMBEDDING_DEPLOYMENT_NAME string = embeddingModelDeploymentName
