@@ -7,4 +7,4 @@ RUN if [ -f /tmp/requirements.txt ]; then \
         echo "No requirements.txt found"; \
     fi
 COPY ./src /app/src
-ENTRYPOINT ["python", "-m", "src.promotion_ingestion.job"]
+ENTRYPOINT ["python", "-m", "src.promotion_ingestion.processor"]

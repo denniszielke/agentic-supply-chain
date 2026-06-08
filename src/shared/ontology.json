@@ -1,0 +1,253 @@
+{
+  "domain": "Retail Supply Chain",
+  "description": "Ontology for extracting structured retail offer data from promotional flyers and catalogues. Each extraction job produces exactly one Supplier, zero-or-more Categories, and zero-or-more Items.",
+  "version": "1.0.0",
+  "classes": {
+    "Supplier": {
+      "description": "A retail store or brand that publishes the promotional flyer. Exactly one Supplier is produced per extraction job.",
+      "fields": {
+        "id": {
+          "type": "string",
+          "role": "document_key",
+          "description": "Unique document key; defaults to supplier_id when not set explicitly."
+        },
+        "supplier_id": {
+          "type": "string",
+          "required": true,
+          "description": "Stable business identifier for the supplier, e.g. 'aldi-de-001'. Provided as input to the job; do not infer from images."
+        },
+        "brand": {
+          "type": "string",
+          "required": true,
+          "description": "Retail brand name as printed on the flyer, e.g. 'ALDI SÜD', 'Lidl', 'REWE', 'Edeka'."
+        },
+        "store_name": {
+          "type": "string",
+          "required": true,
+          "description": "Full store or chain name. Use the brand name if a specific store name is not visible."
+        },
+        "address": {
+          "$ref": "Address",
+          "required": true,
+          "description": "Physical address. Use empty strings for fields that cannot be extracted."
+        },
+        "opening_hours": {
+          "type": "array",
+          "items": { "$ref": "OpeningHour" },
+          "description": "Weekly opening hours if printed on the flyer."
+        },
+        "region": {
+          "type": "string",
+          "description": "Geographic region or market area shown on the flyer, e.g. 'Bayern', 'Nordrhein-Westfalen', 'Österreich'."
+        },
+        "contact": {
+          "$ref": "Contact",
+          "description": "Printed contact details (phone, website)."
+        },
+        "offer_validity": {
+          "$ref": "OfferValidity",
+          "description": "Date range for which the promotional prices are valid. Use ISO 8601 datetime strings (e.g. '2024-01-15T00:00:00Z')."
+        },
+        "ingestion_metadata": {
+          "$ref": "IngestionMetadata",
+          "description": "Set automatically by the processor; do not include in LLM output."
+        }
+      }
+    },
+    "Address": {
+      "description": "Physical postal address.",
+      "fields": {
+        "street": { "type": "string", "description": "Street name and number." },
+        "city": { "type": "string", "description": "City or municipality name." },
+        "postal_code": { "type": "string", "description": "Postal / ZIP code." },
+        "country": { "type": "string", "default": "DE", "description": "ISO 3166-1 alpha-2 country code." },
+        "geo": {
+          "$ref": "GeoLocation",
+          "description": "Latitude/longitude if available."
+        }
+      }
+    },
+    "GeoLocation": {
+      "description": "WGS84 geographic coordinates.",
+      "fields": {
+        "lat": { "type": "number", "description": "Latitude in decimal degrees." },
+        "lon": { "type": "number", "description": "Longitude in decimal degrees." }
+      }
+    },
+    "OpeningHour": {
+      "description": "Opening hours for a single day or day-range.",
+      "fields": {
+        "day": { "type": "string", "description": "Day name or range, e.g. 'Monday', 'Mo-Fr'." },
+        "open": { "type": "string", "description": "Opening time in HH:MM format." },
+        "close": { "type": "string", "description": "Closing time in HH:MM format." }
+      }
+    },
+    "Contact": {
+      "description": "Supplier contact details.",
+      "fields": {
+        "phone": { "type": "string" },
+        "website": { "type": "string" }
+      }
+    },
+    "OfferValidity": {
+      "description": "Promotional validity window for all items in the flyer.",
+      "fields": {
+        "start_date": { "type": "datetime", "description": "ISO 8601 datetime string, e.g. '2024-01-15T00:00:00Z'." },
+        "end_date": { "type": "datetime", "description": "ISO 8601 datetime string, e.g. '2024-01-21T23:59:59Z'." }
+      }
+    },
+    "IngestionMetadata": {
+      "description": "Technical provenance metadata — set by the processor, never by the LLM.",
+      "fields": {
+        "source_document": { "type": "string", "description": "Source file name or URL." },
+        "ingestion_timestamp": { "type": "datetime", "description": "UTC timestamp of ingestion." }
+      }
+    },
+    "Category": {
+      "description": "A normalized product category. Shared across suppliers; models a semantic grouping independent of any single flyer layout.",
+      "fields": {
+        "id": {
+          "type": "string",
+          "role": "document_key",
+          "description": "Unique document key; defaults to category_id when not set."
+        },
+        "category_id": {
+          "type": "string",
+          "required": true,
+          "description": "Stable slug-style identifier, lowercase, hyphen-separated, e.g. 'dairy-products', 'fresh-produce', 'beverages-alcoholic'."
+        },
+        "name": {
+          "type": "string",
+          "required": true,
+          "description": "Human-readable category name in the flyer language, e.g. 'Molkereiprodukte', 'Obst & Gemüse'."
+        },
+        "parent_category_id": {
+          "type": "string",
+          "description": "category_id of the parent category if this is a subcategory, e.g. 'beverages-alcoholic' → parent 'beverages'."
+        },
+        "description_text": {
+          "type": "string",
+          "required": true,
+          "description": "One- or two-sentence description of the category and what kinds of products belong to it."
+        },
+        "semantic_tags": {
+          "type": "array",
+          "items": "string",
+          "description": "List of searchable keywords associated with this category, e.g. ['milk', 'cheese', 'yogurt', 'butter']."
+        }
+      }
+    },
+    "Item": {
+      "description": "A concrete promotional offer for a product within the flyer. One Item per distinct SKU or deal shown on the flyer.",
+      "fields": {
+        "id": {
+          "type": "string",
+          "role": "document_key",
+          "description": "Unique document key; defaults to item_id when not set."
+        },
+        "item_id": {
+          "type": "string",
+          "required": true,
+          "description": "Stable identifier for this offer, e.g. '{supplier_id}-{slug}-{page}'. Must be unique within the job."
+        },
+        "supplier_id": {
+          "type": "string",
+          "required": true,
+          "description": "Matches the Supplier.supplier_id for this job. Always the same value across all Items in one job."
+        },
+        "name": {
+          "type": "string",
+          "required": true,
+          "description": "Product name as printed on the flyer."
+        },
+        "brand": {
+          "type": "string",
+          "description": "Product brand (not the retailer brand), e.g. 'Coca-Cola', 'Milka'. Omit or null if own-brand."
+        },
+        "description_text": {
+          "type": "string",
+          "required": true,
+          "description": "Brief product description including key attributes, e.g. 'Vollmilch 3.5% Fett, 1L Tetrapack'."
+        },
+        "category_id": {
+          "type": "string",
+          "required": true,
+          "description": "Must match a Category.category_id present in the 'categories' array."
+        },
+        "attributes": {
+          "$ref": "Attributes",
+          "description": "Optional quality and origin attributes."
+        },
+        "packaging": {
+          "$ref": "Packaging",
+          "description": "Pack size, unit type, and packaging format."
+        },
+        "pricing": {
+          "$ref": "Pricing",
+          "required": true,
+          "description": "All pricing information for this offer."
+        },
+        "promotion": {
+          "$ref": "Promotion",
+          "description": "Promotional mechanic details if present."
+        },
+        "conditions": {
+          "$ref": "Conditions",
+          "description": "Additional purchase conditions."
+        }
+      }
+    },
+    "Attributes": {
+      "description": "Optional quality and provenance attributes for a product.",
+      "fields": {
+        "origin": { "type": "string", "description": "Country or region of origin, e.g. 'Deutschland', 'Spanien'." },
+        "quality_grade": { "type": "string", "description": "Quality or certification grade, e.g. 'Bio', 'Premium', 'Klasse I'." },
+        "bio": { "type": "boolean", "default": false, "description": "True if the product carries an organic/bio certification." },
+        "animal_welfare": { "type": "string", "description": "Animal welfare label if applicable, e.g. '4-Sterne Tierhaltung', 'Weidehaltung'." }
+      }
+    },
+    "Packaging": {
+      "description": "Pack size and format information.",
+      "fields": {
+        "unit_type": { "type": "string", "description": "Unit of measure, e.g. 'kg', 'g', 'l', 'ml', 'Stück', 'Packung'." },
+        "quantity": { "type": "number", "description": "Numeric quantity in the stated unit." },
+        "packaging_type": { "type": "string", "description": "Packaging form, e.g. 'Flasche', 'Dose', 'Tetrapack', 'Schale', 'Tüte'." }
+      }
+    },
+    "Pricing": {
+      "description": "Pricing details for a promotional offer.",
+      "fields": {
+        "current_price": { "type": "number", "required": true, "description": "Promotional (sale) price." },
+        "currency": { "type": "string", "default": "EUR", "description": "ISO 4217 currency code, e.g. 'EUR', 'CHF'." },
+        "original_price": { "type": "number", "description": "Regular price before the promotion, if shown (Streichpreis)." },
+        "discount_percentage": { "type": "number", "description": "Percentage discount, e.g. 20.0 for 20% off. Compute if not printed but original_price is available." },
+        "unit_price": { "type": "number", "description": "Normalised unit price, e.g. price per kg or per litre." },
+        "unit_reference": { "type": "string", "description": "Reference unit for unit_price, e.g. '1 kg', '100 ml'." }
+      }
+    },
+    "Promotion": {
+      "description": "Promotional mechanic details.",
+      "fields": {
+        "type": {
+          "type": "string",
+          "enum": ["discount", "2for1", "bundle", "coupon", "loyalty", "cashback", "other"],
+          "description": "Type of promotional mechanic."
+        },
+        "bonus_amount": { "type": "number", "description": "Bonus cash value or loyalty-point value if applicable." },
+        "coupon_required": { "type": "boolean", "default": false, "description": "True if a coupon or app activation is required to claim the discount." }
+      }
+    },
+    "Conditions": {
+      "description": "Additional purchase conditions.",
+      "fields": {
+        "deposit": { "type": "number", "description": "Deposit (Pfand) amount if applicable, e.g. 0.25 for Einwegpfand." },
+        "availability": { "type": "string", "description": "Availability note, e.g. 'Nur solange der Vorrat reicht', 'Ab Donnerstag'." }
+      }
+    }
+  },
+  "relationships": [
+    { "from": "Item", "field": "supplier_id", "to": "Supplier", "via": "supplier_id" },
+    { "from": "Item", "field": "category_id", "to": "Category", "via": "category_id" },
+    { "from": "Category", "field": "parent_category_id", "to": "Category", "via": "category_id" }
+  ]
+}

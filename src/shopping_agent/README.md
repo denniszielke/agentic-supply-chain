@@ -65,7 +65,7 @@ docker run -p 8090:8090 shopping-agent
 Or use the shared build script:
 
 ```bash
-./scripts/build_containers.sh
+./scripts/build_containers.sh "${AZURE_ENV_NAME}"
 ```
 
 ## Environment variables

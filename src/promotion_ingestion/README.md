@@ -1,60 +1,64 @@
-# promotion_ingestion — Flyer Indexing Job
+# promotion_ingestion — Flyer Processor
 
 ## Overview
 
-`promotion_ingestion` is a Python container job that downloads and indexes weekly retail promotional flyers (PDFs, images, or web pages) into the Azure AI Search index defined by this project.
+`promotion_ingestion` is a Python container job that downloads weekly retail promotional flyers (PDFs or images), extracts structured supplier, category, and product data using a GPT-5 vision model, and persists the results as JSON ready for indexing into Azure AI Search.
 
-The job follows a three-stage pipeline:
+### Pipeline
 
-1. **Materialize** — download remote URLs or enumerate local files
-2. **Extract** — parse offer tiles from each source (OCR / visual model hook)
-3. **Persist** — write normalized `Item` records to a JSON output file or push directly to the search index
+1. **Materialise** — download HTTP/HTTPS sources or use local file paths into a configurable working directory
+2. **Split** — convert each PDF page into a PNG image using PyMuPDF
+3. **Extract** — run a sliding-window batch loop over the collected images, calling the Azure OpenAI vision model; each batch receives the accumulated extraction state and incrementally extends it
+4. **Persist** — write `{ supplier, categories, items }` as a single JSON file
+
+The extraction is guided by the domain ontology in [`src/shared/ontology.json`](../shared/ontology.json).
 
 ## Running locally
 
 ```bash
 # from repository root
-python -m src.promotion_ingestion.job \
-    --source https://example.com/weekly-flyer.pdf \
+python -m src.promotion_ingestion.processor \
     --supplier-id rewe-berlin-week-24 \
-    --output data/indexed-items.json
+    --source https://example.com/weekly-flyer.pdf \
+    --source data/local-flyer.pdf \
+    --output data/extraction-result.json
 ```
 
-Supported `--source` values:
-- HTTP/HTTPS URL (PDF, image, or HTML page)
-- Path to a local PDF or image file
-- Path to a folder of images
+`--source` can be repeated for multiple PDFs or images. Supported formats: PDF, PNG, JPG, JPEG, WebP.
 
 ## Container build
 
 ```bash
 docker build -t promotion-ingestion -f src/promotion_ingestion/Dockerfile .
-docker run promotion-ingestion \
-    --source https://example.com/flyer.pdf \
-    --supplier-id rewe-berlin-week-24
+docker run --env-file .env promotion-ingestion \
+    --supplier-id rewe-berlin-week-24 \
+    --source https://example.com/flyer.pdf
 ```
 
 Or use the shared build script:
 
 ```bash
-./scripts/build_containers.sh
+./scripts/build_containers.sh "${AZURE_ENV_NAME}"
 ```
 
 ## Environment variables
 
-| Variable | Description |
-|---|---|
-| `AZURE_SEARCH_ENDPOINT` | Azure AI Search endpoint (optional — required for index push) |
-| `AZURE_SEARCH_ADMIN_KEY` | Admin API key (optional — required for index push) |
+| Variable | Default | Description |
+|---|---|---|
+| `PROCESSING_WORK_DIR` | `/tmp/agentic-supply-chain` | Root directory for image artefacts |
+| `PROCESSING_BATCH_SIZE` | `8` | Images per sliding-window batch |
+| `PROCESSING_OVERLAP` | `2` | Overlapping images between batches |
+| `AZURE_OPENAI_ENDPOINT` | — | Azure OpenAI endpoint URL |
+| `AZURE_OPENAI_API_KEY` | — | API key (falls back to `DefaultAzureCredential` if absent) |
+| `AZURE_OPENAI_CHAT_DEPLOYMENT_NAME` | `gpt-4o` | Vision model deployment name |
+| `OPENAI_API_VERSION` | `2025-01-01-preview` | Azure OpenAI API version |
 
 ## Key files
 
 | File | Purpose |
 |---|---|
-| `job.py` | `FlyerIndexerJob` class and CLI entry point |
+| `processor.py` | `FlyerProcessor` pipeline, `JobInput` / `ExtractionResult` models, CLI entry point |
 | `Dockerfile` | Container image definition |
 | `requirements.txt` | Python dependencies |
-
-## Extending the extraction pipeline
-
-`FlyerIndexerJob._extract_offers()` is the hook point for a visual understanding model (e.g., GPT-4o Vision or Azure AI Document Intelligence). Replace the placeholder stub in `job.py` with your OCR/LLM call to extract structured `ExtractedOffer` objects from real flyer images.
+| `../shared/ontology.json` | Domain ontology used as LLM context |
+| `../shared/models.py` | Pydantic models: `Supplier`, `Category`, `Item` and related types |

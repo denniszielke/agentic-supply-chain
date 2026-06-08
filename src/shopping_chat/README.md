@@ -34,7 +34,7 @@ docker run -p 8080:8080 shopping-chat
 Or use the shared build script:
 
 ```bash
-./scripts/build_containers.sh
+./scripts/build_containers.sh "${AZURE_ENV_NAME}"
 ```
 
 ## Environment variables

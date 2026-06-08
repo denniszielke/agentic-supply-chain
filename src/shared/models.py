@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import datetime, timezone
 from typing import Dict, List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class GeoLocation(BaseModel):
@@ -31,8 +31,8 @@ class Contact(BaseModel):
 
 
 class OfferValidity(BaseModel):
-    start_date: date
-    end_date: date
+    start_date: Optional[datetime] = None
+    end_date: Optional[datetime] = None
 
 
 class IngestionMetadata(BaseModel):
@@ -43,6 +43,7 @@ class IngestionMetadata(BaseModel):
 
 
 class Supplier(BaseModel):
+    id: str = ""
     supplier_id: str
     brand: str
     store_name: str
@@ -50,17 +51,30 @@ class Supplier(BaseModel):
     opening_hours: List[OpeningHour] = Field(default_factory=list)
     region: Optional[str] = None
     contact: Contact = Field(default_factory=Contact)
-    offer_validity: OfferValidity
+    offer_validity: Optional[OfferValidity] = None
     ingestion_metadata: IngestionMetadata
+
+    @model_validator(mode="after")
+    def _default_id(self) -> "Supplier":
+        if not self.id:
+            self.id = self.supplier_id
+        return self
 
 
 class Category(BaseModel):
+    id: str = ""
     category_id: str
     name: str
     parent_category_id: Optional[str] = None
     description_text: str
     semantic_tags: List[str] = Field(default_factory=list)
     embedding: List[float] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _default_id(self) -> "Category":
+        if not self.id:
+            self.id = self.category_id
+        return self
 
 
 class Attributes(BaseModel):
@@ -97,6 +111,7 @@ class Conditions(BaseModel):
 
 
 class Item(BaseModel):
+    id: str = ""
     item_id: str
     supplier_id: str
     name: str
@@ -109,6 +124,12 @@ class Item(BaseModel):
     promotion: Promotion = Field(default_factory=Promotion)
     conditions: Conditions = Field(default_factory=Conditions)
     embedding: List[float] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _default_id(self) -> "Item":
+        if not self.id:
+            self.id = self.item_id
+        return self
 
 
 CatalogBySupplier = Dict[str, List[Item]]

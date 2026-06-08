@@ -21,13 +21,13 @@ An agentic scenario that solves **supplier optimization for retail shopping**. W
 
 The project normalises all flyer data into three core entities:
 
-- **Supplier** — one per flyer/campaign: store, region, validity window, address
-- **Category** — normalised taxonomy: name, tags, embedding
-- **Item** — single offer instance: product, pricing, promotion, linked to supplier + category
+- **Supplier** — one per flyer/campaign: store, region, validity window, address, opening hours
+- **Category** — normalised semantic grouping: name, slug ID, tags, optional parent, vector embedding
+- **Item** — single promotional offer: product name, brand, description, pricing, promotion mechanic, linked to supplier + category
 
-The vector schema uses `content_vector` with **1536 dimensions** (compatible with `text-embedding-3-small`). Changing embedding models requires a schema update in `infra/search-schema.json`.
+Pydantic models live in [`src/shared/models.py`](src/shared/models.py). The full domain ontology (field descriptions, types, enumerations, relationships) is in [`src/shared/ontology.json`](src/shared/ontology.json) and is used as context for LLM-based extraction.
 
-Full schema: [`infra/search-schema.json`](infra/search-schema.json)
+The AI Search vector fields use **1536 dimensions** (compatible with `text-embedding-3-small`).
 
 ---
 
@@ -36,27 +36,31 @@ Full schema: [`infra/search-schema.json`](infra/search-schema.json)
 ```
 agentic-supply-chain/
 ├── azure.yaml                    # azd configuration
+├── requirements.txt              # Combined local dev dependencies (all services)
 ├── infra/
 │   ├── main.bicep                # Top-level subscription-scoped deployment
 │   ├── main.parameters.json
-│   ├── search-schema.json        # Azure AI Search vector index schema
 │   └── core/
 │       ├── ai/                   # AI Foundry account, project, connections
 │       ├── host/                 # VNet, Container Apps environment, ACR, identity, app
 │       ├── monitor/              # Log Analytics, Application Insights
 │       └── search/               # Azure AI Search, Bing grounding
 ├── src/
-│   ├── shared/                   # Pydantic models, planner, seed data
+│   ├── shared/
+│   │   ├── models.py             # Pydantic models: Supplier, Category, Item
+│   │   ├── ontology.json         # Domain ontology used by the processor
+│   │   ├── planner.py            # Shopping planner logic
+│   │   └── seed_data.py          # Local dev seed data
 │   ├── shopping_chat/            # MCP app + UI  →  see src/shopping_chat/README.md
-│   ├── promotion_ingestion/      # Flyer indexer  →  see src/promotion_ingestion/README.md
+│   ├── promotion_ingestion/      # Flyer processor  →  see src/promotion_ingestion/README.md
 │   └── shopping_agent/           # A2A planning agent  →  see src/shopping_agent/README.md
 ├── scripts/
 │   ├── build_containers.sh       # Build all images via az acr build
-│   ├── create_index.py           # Create / update Azure AI Search index
-│   ├── delete_index.py           # Delete Azure AI Search index
+│   ├── create_index.py           # Create / update Azure AI Search indexes
+│   ├── delete_index.py           # Delete Azure AI Search indexes
 │   ├── deploy_agents.py          # Deploy Container Apps via app.bicep
 │   ├── delete_agents.py          # Delete all Container Apps
-│   └── search_index_pipeline.py  # Lower-level index helper (used by deploy_assets.py)
+│   └── search_index_pipeline.py  # Azure AI Search index schema definitions
 └── tests/
     ├── test_catalog.py
     └── test_planner.py
@@ -178,12 +182,25 @@ If `AZURE_AI_PROJECT_ENDPOINT` and `AZURE_CONTAINER_REGISTRY_ENDPOINT` are also 
 
 ### 2c. Ingest a promotional flyer
 
+Runs the vision-model extraction pipeline against one or more PDF/image sources and writes the result to a JSON file:
+
 ```bash
-python -m src.promotion_ingestion.job \
-    --source https://example.com/weekly-flyer.pdf \
+python -m src.promotion_ingestion.processor \
     --supplier-id rewe-berlin-week-24 \
-    --output data/indexed-items.json
+    --source https://example.com/weekly-flyer.pdf \
+    --source data/local-flyer.pdf \
+    --output data/extraction-result.json
 ```
+
+Key env vars for this step:
+
+| Variable | Description |
+|---|---|
+| `AZURE_OPENAI_ENDPOINT` | Azure OpenAI endpoint |
+| `AZURE_OPENAI_CHAT_DEPLOYMENT_NAME` | Vision model deployment (default: `gpt-4o`) |
+| `PROCESSING_WORK_DIR` | Where page images are stored (default: `/tmp/agentic-supply-chain`) |
+| `PROCESSING_BATCH_SIZE` | Images per batch (default: `8`) |
+| `PROCESSING_OVERLAP` | Sliding-window overlap (default: `2`) |
 
 ---
 
