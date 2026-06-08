@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.43.8.12551",
-      "templateHash": "12310549011831662481"
+      "templateHash": "11161559164368004875"
     }
   },
   "parameters": {
@@ -21,6 +21,10 @@
       "type": "string",
       "defaultValue": "basic"
     },
+    "searchIndexName": {
+      "type": "string",
+      "defaultValue": "offers-index"
+    },
     "chatModelDeploymentName": {
       "type": "string",
       "defaultValue": "gpt-4.1-mini"
@@ -32,6 +36,27 @@
     "openAiApiVersion": {
       "type": "string",
       "defaultValue": "2024-05-01-preview"
+    },
+    "aiProjectEndpoint": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Optional Azure AI Foundry project endpoint for hosted-agent deployment."
+      }
+    },
+    "aiProjectId": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Optional Azure AI Foundry project ARM resource id for hosted-agent RBAC."
+      }
+    },
+    "aiProjectName": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Optional Azure AI Foundry project name."
+      }
     }
   },
   "variables": {
@@ -216,6 +241,10 @@
                   "value": "[format('https://{0}.search.windows.net', format('{0}-search', parameters('environmentName')))]"
                 },
                 {
+                  "name": "AZURE_SEARCH_INDEX_NAME",
+                  "value": "[parameters('searchIndexName')]"
+                },
+                {
                   "name": "AZURE_SEARCH_ADMIN_KEY",
                   "secretRef": "azure-search-admin-key"
                 },
@@ -226,6 +255,18 @@
                 {
                   "name": "AZURE_OPENAI_ENDPOINT",
                   "value": "[reference(resourceId('Microsoft.CognitiveServices/accounts', format('{0}-aoai', parameters('environmentName'))), '2023-05-01').endpoint]"
+                },
+                {
+                  "name": "AZURE_AI_PROJECT_ENDPOINT",
+                  "value": "[parameters('aiProjectEndpoint')]"
+                },
+                {
+                  "name": "AZURE_AI_PROJECT_ID",
+                  "value": "[parameters('aiProjectId')]"
+                },
+                {
+                  "name": "AZURE_AI_PROJECT_NAME",
+                  "value": "[parameters('aiProjectName')]"
                 },
                 {
                   "name": "AZURE_AI_MODEL_DEPLOYMENT_NAME",
@@ -305,6 +346,10 @@
                   "value": "[format('https://{0}.search.windows.net', format('{0}-search', parameters('environmentName')))]"
                 },
                 {
+                  "name": "AZURE_SEARCH_INDEX_NAME",
+                  "value": "[parameters('searchIndexName')]"
+                },
+                {
                   "name": "AZURE_SEARCH_ADMIN_KEY",
                   "secretRef": "azure-search-admin-key"
                 },
@@ -315,6 +360,18 @@
                 {
                   "name": "AZURE_OPENAI_ENDPOINT",
                   "value": "[reference(resourceId('Microsoft.CognitiveServices/accounts', format('{0}-aoai', parameters('environmentName'))), '2023-05-01').endpoint]"
+                },
+                {
+                  "name": "AZURE_AI_PROJECT_ENDPOINT",
+                  "value": "[parameters('aiProjectEndpoint')]"
+                },
+                {
+                  "name": "AZURE_AI_PROJECT_ID",
+                  "value": "[parameters('aiProjectId')]"
+                },
+                {
+                  "name": "AZURE_AI_PROJECT_NAME",
+                  "value": "[parameters('aiProjectName')]"
                 },
                 {
                   "name": "AZURE_AI_MODEL_DEPLOYMENT_NAME",
@@ -394,6 +451,10 @@
                   "value": "[format('https://{0}.search.windows.net', format('{0}-search', parameters('environmentName')))]"
                 },
                 {
+                  "name": "AZURE_SEARCH_INDEX_NAME",
+                  "value": "[parameters('searchIndexName')]"
+                },
+                {
                   "name": "AZURE_SEARCH_ADMIN_KEY",
                   "secretRef": "azure-search-admin-key"
                 },
@@ -404,6 +465,18 @@
                 {
                   "name": "AZURE_OPENAI_ENDPOINT",
                   "value": "[reference(resourceId('Microsoft.CognitiveServices/accounts', format('{0}-aoai', parameters('environmentName'))), '2023-05-01').endpoint]"
+                },
+                {
+                  "name": "AZURE_AI_PROJECT_ENDPOINT",
+                  "value": "[parameters('aiProjectEndpoint')]"
+                },
+                {
+                  "name": "AZURE_AI_PROJECT_ID",
+                  "value": "[parameters('aiProjectId')]"
+                },
+                {
+                  "name": "AZURE_AI_PROJECT_NAME",
+                  "value": "[parameters('aiProjectName')]"
                 },
                 {
                   "name": "AZURE_AI_MODEL_DEPLOYMENT_NAME",
@@ -497,6 +570,10 @@
       "type": "string",
       "value": "[format('https://{0}.search.windows.net', format('{0}-search', parameters('environmentName')))]"
     },
+    "AZURE_SEARCH_INDEX_NAME": {
+      "type": "string",
+      "value": "[parameters('searchIndexName')]"
+    },
     "AZURE_SEARCH_ADMIN_KEY": {
       "type": "string",
       "value": "[listAdminKeys(resourceId('Microsoft.Search/searchServices', format('{0}-search', parameters('environmentName'))), '2023-11-01').primaryKey]"
@@ -513,6 +590,14 @@
       "type": "string",
       "value": "[reference(resourceId('Microsoft.ContainerRegistry/registries', format('{0}acr', replace(parameters('environmentName'), '-', ''))), '2023-07-01').loginServer]"
     },
+    "AZURE_RESOURCE_GROUP": {
+      "type": "string",
+      "value": "[resourceGroup().name]"
+    },
+    "AZURE_LOCATION": {
+      "type": "string",
+      "value": "[parameters('location')]"
+    },
     "AZURE_CONTAINER_APPS_ENVIRONMENT_ID": {
       "type": "string",
       "value": "[resourceId('Microsoft.App/managedEnvironments', format('{0}-cae', parameters('environmentName')))]"
@@ -524,6 +609,18 @@
     "AZURE_OPENAI_ENDPOINT": {
       "type": "string",
       "value": "[reference(resourceId('Microsoft.CognitiveServices/accounts', format('{0}-aoai', parameters('environmentName'))), '2023-05-01').endpoint]"
+    },
+    "AZURE_AI_PROJECT_ENDPOINT": {
+      "type": "string",
+      "value": "[parameters('aiProjectEndpoint')]"
+    },
+    "AZURE_AI_PROJECT_ID": {
+      "type": "string",
+      "value": "[parameters('aiProjectId')]"
+    },
+    "AZURE_AI_PROJECT_NAME": {
+      "type": "string",
+      "value": "[parameters('aiProjectName')]"
     },
     "AZURE_AI_MODEL_DEPLOYMENT_NAME": {
       "type": "string",
