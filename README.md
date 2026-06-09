@@ -1,6 +1,6 @@
 # agentic-supply-chain
 
-An agentic scenario that solves **supplier optimization for retail shopping**. Weekly promotional flyers from multiple supermarkets (e.g. REWE, ALDI SÜD) are ingested and indexed, then agents and MCP-capable apps help users plan optimal shopping tours across stores.
+An agentic scenario that solves **supplier optimization for retail shopping**. Weekly promotional flyers from multiple supermarkets are ingested and indexed, then agents and MCP-capable apps help users plan optimal shopping tours across stores.
 
 ---
 
@@ -56,11 +56,12 @@ agentic-supply-chain/
 │   └── shopping_agent/           # A2A planning agent  →  see src/shopping_agent/README.md
 ├── scripts/
 │   ├── build_containers.sh       # Build all images via az acr build
-│   ├── create_index.py           # Create / update Azure AI Search indexes
+│   ├── create_search_index.py    # Create / update Azure AI Search indexes
+│   ├── create_knowledgebase.py   # Create / update AI Search knowledge sources and knowledge base
+│   ├── deploy_assets.py          # Runs create_search_index + create_knowledgebase (postprovision hook)
 │   ├── delete_index.py           # Delete Azure AI Search indexes
 │   ├── deploy_agents.py          # Deploy Container Apps via app.bicep
-│   ├── delete_agents.py          # Delete all Container Apps
-│   └── search_index_pipeline.py  # Azure AI Search index schema definitions
+│   └── delete_agents.py          # Delete all Container Apps
 └── tests/
     ├── test_catalog.py
     └── test_planner.py
@@ -100,7 +101,7 @@ Resources provisioned by `infra/main.bicep`:
 | Log Analytics + Application Insights | `logs-<token>` / `appi-<token>` |
 
 After `azd up` completes, azd writes all infra outputs to `.azure/<AZURE_ENV_NAME>/.env`.
-The `postdeploy` hook copies this automatically to `./.env`, making the following variables available for subsequent steps:
+The `postdeploy` hook copies this automatically to `./.env` and builds all container images via ACR remote build, making the following variables available for subsequent steps:
 
 ```
 AZURE_RESOURCE_GROUP
@@ -111,7 +112,10 @@ AZURE_CONTAINER_APPS_ENVIRONMENT_ID
 AZURE_CONTAINER_REGISTRY_ENDPOINT
 AZURE_REGISTRY
 AZURE_SEARCH_ENDPOINT
-AZURE_SEARCH_INDEX_NAME
+AZURE_SEARCH_SUPPLIER_INDEX_NAME
+AZURE_SEARCH_CATEGORY_INDEX_NAME
+AZURE_SEARCH_ITEM_INDEX_NAME
+AZURE_SEARCH_KNOWLEDGE_BASE_NAME
 AZURE_SEARCH_ADMIN_KEY
 AZURE_OPENAI_ENDPOINT
 AZURE_AI_PROJECT_ENDPOINT
@@ -124,17 +128,23 @@ OPENAI_API_VERSION
 APPLICATIONINSIGHTS_CONNECTION_STRING
 ```
 
-### 1a. Create the search index
+### 1a. Create search indexes and knowledge base
+
+The `postprovision` hook runs this automatically after `azd provision`. To run manually:
 
 ```bash
-python scripts/create_index.py
+python scripts/deploy_assets.py
 ```
+
+This creates the three AI Search indexes (`retail-suppliers`, `retail-categories`, `retail-items`) and the `supply-chain-kb` knowledge base used for agentic retrieval.
 
 ---
 
 ## Step 2 — Build containers and deploy
 
 This step builds the container images in ACR and deploys each service as a Container App. It can be repeated independently whenever source code changes — no re-provisioning required.
+
+> **Note:** The `postdeploy` hook in `azure.yaml` runs steps 2a automatically at the end of `azd up`.
 
 ### 2a. Build container images
 
@@ -186,7 +196,7 @@ Runs the vision-model extraction pipeline against one or more PDF/image sources 
 
 ```bash
 python -m src.promotion_ingestion.processor \
-    --supplier-id rewe-berlin-week-24 \
+    --supplier-id <supplier-id> \
     --source https://example.com/weekly-flyer.pdf \
     --source data/local-flyer.pdf \
     --output data/extraction-result.json

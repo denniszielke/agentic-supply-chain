@@ -15,6 +15,12 @@ param aiProjectName string = ''
 @description('Name for the AI Foundry Bing Custom Search connection')
 param connectionName string = 'bing-custom-grounding-connection'
 
+@description('Set to true to skip creating the connection if it already exists (idempotent re-runs)')
+param skipConnectionCreation bool = false
+
+@description('Set to true to skip creating role assignments that already exist (idempotent re-runs)')
+param skipRoleAssignments bool = false
+
 resource aiAccount 'Microsoft.CognitiveServices/accounts@2025-04-01-preview' existing = if (!empty(aiServicesAccountName) && !empty(aiProjectName)) {
   name: aiServicesAccountName
 
@@ -42,7 +48,7 @@ resource bingCustomSearchConfig 'Microsoft.Bing/accounts/customSearchConfigurati
   properties: {}
 }
 
-resource bingCustomSearchRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!empty(aiServicesAccountName) && !empty(aiProjectName)) {
+resource bingCustomSearchRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!empty(aiServicesAccountName) && !empty(aiProjectName) && !skipRoleAssignments) {
   scope: bingCustomSearch
   name: guid(subscription().id, resourceGroup().id, 'bing-search-role', aiServicesAccountName, aiProjectName)
   properties: {
@@ -71,6 +77,7 @@ module aiSearchConnection '../ai/connection.bicep' = if (!empty(aiServicesAccoun
       }
     }
     apiKey: bingCustomSearch.listKeys().key1
+    skipCreation: skipConnectionCreation
   }
   dependsOn: [
     bingCustomSearchRoleAssignment

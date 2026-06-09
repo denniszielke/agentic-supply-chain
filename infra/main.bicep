@@ -60,10 +60,16 @@ param principalType string
 param aiFoundryResourceName string = ''
 
 @description('Optional. Name of the AI Foundry project.')
-param aiFoundryProjectName string = 'ai-project-${environmentName}'
+param aiFoundryProjectName string = 'ai-supplychain-${environmentName}'
 
-@description('Search index name used for the product catalog indexes')
-param searchIndexName string = 'offers-index'
+@description('Name of the supplier search index')
+param supplierIndexName string = 'retail-suppliers'
+
+@description('Name of the category search index')
+param categoryIndexName string = 'retail-categories'
+
+@description('Name of the item search index')
+param itemIndexName string = 'retail-items'
 
 @description('Name of the chat model deployment to use')
 param chatModelDeploymentName string = 'gpt-4.1-mini'
@@ -75,7 +81,7 @@ param embeddingModelDeploymentName string = 'text-embedding-3-small'
 param openAiApiVersion string = '2024-05-01-preview'
 
 @description('List of model deployments')
-param aiProjectDeploymentsJson string = '[{"name":"gpt-4.1-mini","model":{"name":"gpt-4.1-mini","format":"OpenAI","version":"2025-04-14"},"sku":{"name":"GlobalStandard","capacity":10}},{"name":"text-embedding-3-small","model":{"name":"text-embedding-3-small","format":"OpenAI","version":"1"},"sku":{"name":"Standard","capacity":10}}]'
+param aiProjectDeploymentsJson string = '[{"name":"gpt-4.1-mini","model":{"name":"gpt-4.1-mini","format":"OpenAI","version":"2025-04-14"},"sku":{"name":"GlobalStandard","capacity":10}},{"name":"text-embedding-3-small","model":{"name":"text-embedding-3-small","format":"OpenAI","version":"1"},"sku":{"name":"GlobalStandard","capacity":10}}]'
 
 @description('List of connections')
 param aiProjectConnectionsJson string = '[]'
@@ -92,6 +98,12 @@ param enableHostedAgents bool
 
 @description('Enable monitoring for the AI project')
 param enableMonitoring bool = true
+
+@description('Set to true to skip creating project connections that already exist (idempotent re-runs after partial failure)')
+param skipConnectionCreation bool = false
+
+@description('Set to true to skip creating role assignments that already exist (idempotent re-runs after partial failure)')
+param skipRoleAssignments bool = false
 
 var tags = {
   'azd-env-name': environmentName
@@ -127,6 +139,8 @@ module aiProject 'core/ai/ai-project.bicep' = {
     additionalDependentResources: dependentResources
     enableMonitoring: enableMonitoring
     enableHostedAgents: enableHostedAgents
+    skipConnectionCreation: skipConnectionCreation
+    skipRoleAssignments: skipRoleAssignments
   }
 }
 
@@ -168,7 +182,9 @@ output AZURE_AI_PROJECT_ENDPOINT string = aiProject.outputs.AZURE_AI_PROJECT_END
 output AZURE_OPENAI_ENDPOINT string = aiProject.outputs.AZURE_OPENAI_ENDPOINT
 output APPLICATIONINSIGHTS_CONNECTION_STRING string = aiProject.outputs.APPLICATIONINSIGHTS_CONNECTION_STRING
 output AZURE_SEARCH_ENDPOINT string = aiProject.outputs.dependentResources.search.endpoint
-output AZURE_SEARCH_INDEX_NAME string = searchIndexName
+output AZURE_SEARCH_SUPPLIER_INDEX_NAME string = supplierIndexName
+output AZURE_SEARCH_CATEGORY_INDEX_NAME string = categoryIndexName
+output AZURE_SEARCH_ITEM_INDEX_NAME string = itemIndexName
 output AZURE_SEARCH_ADMIN_KEY string = aiProject.outputs.dependentResources.search.adminKey
 output AZURE_AI_MODEL_DEPLOYMENT_NAME string = chatModelDeploymentName
 output AZURE_OPENAI_CHAT_DEPLOYMENT_NAME string = chatModelDeploymentName

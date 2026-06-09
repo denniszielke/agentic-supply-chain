@@ -34,6 +34,12 @@ param enableMonitoring bool = true
 @description('Enable hosted agent deployment')
 param enableHostedAgents bool = false
 
+@description('Set to true to skip creating connections that already exist (for idempotent re-runs)')
+param skipConnectionCreation bool = false
+
+@description('Set to true to skip creating role assignments that already exist (for idempotent re-runs)')
+param skipRoleAssignments bool = false
+
 // Load abbreviations
 var abbrs = loadJsonContent('../../abbreviations.json')
 
@@ -131,7 +137,7 @@ resource aiAccount 'Microsoft.CognitiveServices/accounts@2025-06-01' = {
   }
 }
 
-resource appInsightConnection 'Microsoft.CognitiveServices/accounts/projects/connections@2025-04-01-preview' = if (enableMonitoring) {
+resource appInsightConnection 'Microsoft.CognitiveServices/accounts/projects/connections@2025-04-01-preview' = if (enableMonitoring && !skipConnectionCreation) {
   parent: aiAccount::project
   name: 'appi-connection'
   properties: {
@@ -161,10 +167,11 @@ module aiConnections './connection.bicep' = [for (connection, index) in connecti
       authType: connection.authType
     }
     apiKey: ''
+    skipCreation: skipConnectionCreation
   }
 }]
 
-resource localUserAiDeveloperRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+resource localUserAiDeveloperRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!skipRoleAssignments) {
   scope: resourceGroup()
   name: guid(subscription().id, resourceGroup().id, principalId, '64702f94-c441-49e6-a78b-ef80e0188fee')
   properties: {
@@ -174,7 +181,7 @@ resource localUserAiDeveloperRoleAssignment 'Microsoft.Authorization/roleAssignm
   }
 }
 
-resource localUserCognitiveServicesUserRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+resource localUserCognitiveServicesUserRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!skipRoleAssignments) {
   scope: resourceGroup()
   name: guid(subscription().id, resourceGroup().id, principalId, 'a97b65f3-24c7-4388-baec-2e87135dc908')
   properties: {
@@ -184,7 +191,7 @@ resource localUserCognitiveServicesUserRoleAssignment 'Microsoft.Authorization/r
   }
 }
 
-resource projectCognitiveServicesUserRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+resource projectCognitiveServicesUserRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!skipRoleAssignments) {
   scope: aiAccount
   name: guid(subscription().id, resourceGroup().id, aiAccount::project.name, '53ca6127-db72-4b80-b1b0-d745d6d5456d')
   properties: {
@@ -205,6 +212,8 @@ module storage '../storage/storage.bicep' = if (hasStorageConnection) {
     principalType: principalType
     aiServicesAccountName: aiAccount.name
     aiProjectName: aiAccount::project.name
+    skipConnectionCreation: skipConnectionCreation
+    skipRoleAssignments: skipRoleAssignments
   }
 }
 
@@ -219,6 +228,8 @@ module acr '../host/acr.bicep' = if (hasAcrConnection) {
     principalType: principalType
     aiServicesAccountName: aiAccount.name
     aiProjectName: aiAccount::project.name
+    skipConnectionCreation: skipConnectionCreation
+    skipRoleAssignments: skipRoleAssignments
   }
 }
 
@@ -230,6 +241,8 @@ module bingGrounding '../search/bing_grounding.bicep' = if (hasBingConnection) {
     connectionName: bingConnectionName
     aiServicesAccountName: aiAccount.name
     aiProjectName: aiAccount::project.name
+    skipConnectionCreation: skipConnectionCreation
+    skipRoleAssignments: skipRoleAssignments
   }
 }
 
@@ -241,6 +254,8 @@ module bingCustomGrounding '../search/bing_custom_grounding.bicep' = if (hasBing
     connectionName: bingCustomConnectionName
     aiServicesAccountName: aiAccount.name
     aiProjectName: aiAccount::project.name
+    skipConnectionCreation: skipConnectionCreation
+    skipRoleAssignments: skipRoleAssignments
   }
 }
 
@@ -255,6 +270,8 @@ module azureAiSearch '../search/azure_ai_search.bicep' = if (hasSearchConnection
     principalId: principalId
     principalType: principalType
     location: location
+    skipConnectionCreation: skipConnectionCreation
+    skipRoleAssignments: skipRoleAssignments
   }
 }
 

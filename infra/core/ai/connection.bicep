@@ -36,6 +36,9 @@ param connectionConfig ConnectionConfig
 @description('API key for ApiKey based connections (optional)')
 param apiKey string = ''
 
+@description('Set to true to reference an existing connection instead of creating a new one (idempotent re-runs)')
+param skipCreation bool = false
+
 resource aiAccount 'Microsoft.CognitiveServices/accounts@2025-04-01-preview' existing = {
   name: aiServicesAccountName
 
@@ -44,7 +47,14 @@ resource aiAccount 'Microsoft.CognitiveServices/accounts@2025-04-01-preview' exi
   }
 }
 
-resource connection 'Microsoft.CognitiveServices/accounts/projects/connections@2025-04-01-preview' = {
+// Reference an already-existing connection without issuing a PUT
+resource existingConnection 'Microsoft.CognitiveServices/accounts/projects/connections@2025-04-01-preview' existing = if (skipCreation) {
+  parent: aiAccount::project
+  name: connectionConfig.name
+}
+
+// Create the connection on first deploy
+resource connection 'Microsoft.CognitiveServices/accounts/projects/connections@2025-04-01-preview' = if (!skipCreation) {
   parent: aiAccount::project
   name: connectionConfig.name
   properties: {
@@ -59,5 +69,5 @@ resource connection 'Microsoft.CognitiveServices/accounts/projects/connections@2
   }
 }
 
-output connectionName string = connection.name
-output connectionId string = connection.id
+output connectionName string = skipCreation ? existingConnection.name : connection!.name
+output connectionId string = skipCreation ? existingConnection.id : connection!.id

@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.43.8.12551",
-      "templateHash": "14031365611809935786"
+      "templateHash": "523885389263160711"
     }
   },
   "parameters": {
@@ -93,16 +93,30 @@
     },
     "aiFoundryProjectName": {
       "type": "string",
-      "defaultValue": "[format('ai-project-{0}', parameters('environmentName'))]",
+      "defaultValue": "[format('ai-supplychain-{0}', parameters('environmentName'))]",
       "metadata": {
         "description": "Optional. Name of the AI Foundry project."
       }
     },
-    "searchIndexName": {
+    "supplierIndexName": {
       "type": "string",
-      "defaultValue": "offers-index",
+      "defaultValue": "retail-suppliers",
       "metadata": {
-        "description": "Search index name used for the product catalog indexes"
+        "description": "Name of the supplier search index"
+      }
+    },
+    "categoryIndexName": {
+      "type": "string",
+      "defaultValue": "retail-categories",
+      "metadata": {
+        "description": "Name of the category search index"
+      }
+    },
+    "itemIndexName": {
+      "type": "string",
+      "defaultValue": "retail-items",
+      "metadata": {
+        "description": "Name of the item search index"
       }
     },
     "chatModelDeploymentName": {
@@ -128,7 +142,7 @@
     },
     "aiProjectDeploymentsJson": {
       "type": "string",
-      "defaultValue": "[[{\"name\":\"gpt-4.1-mini\",\"model\":{\"name\":\"gpt-4.1-mini\",\"format\":\"OpenAI\",\"version\":\"2025-04-14\"},\"sku\":{\"name\":\"GlobalStandard\",\"capacity\":10}},{\"name\":\"text-embedding-3-small\",\"model\":{\"name\":\"text-embedding-3-small\",\"format\":\"OpenAI\",\"version\":\"1\"},\"sku\":{\"name\":\"Standard\",\"capacity\":10}}]",
+      "defaultValue": "[[{\"name\":\"gpt-4.1-mini\",\"model\":{\"name\":\"gpt-4.1-mini\",\"format\":\"OpenAI\",\"version\":\"2025-04-14\"},\"sku\":{\"name\":\"GlobalStandard\",\"capacity\":10}},{\"name\":\"text-embedding-3-small\",\"model\":{\"name\":\"text-embedding-3-small\",\"format\":\"OpenAI\",\"version\":\"1\"},\"sku\":{\"name\":\"GlobalStandard\",\"capacity\":10}}]",
       "metadata": {
         "description": "List of model deployments"
       }
@@ -158,6 +172,20 @@
       "defaultValue": true,
       "metadata": {
         "description": "Enable monitoring for the AI project"
+      }
+    },
+    "skipConnectionCreation": {
+      "type": "bool",
+      "defaultValue": false,
+      "metadata": {
+        "description": "Set to true to skip creating project connections that already exist (idempotent re-runs after partial failure)"
+      }
+    },
+    "skipRoleAssignments": {
+      "type": "bool",
+      "defaultValue": false,
+      "metadata": {
+        "description": "Set to true to skip creating role assignments that already exist (idempotent re-runs after partial failure)"
       }
     }
   },
@@ -222,6 +250,12 @@
           },
           "enableHostedAgents": {
             "value": "[parameters('enableHostedAgents')]"
+          },
+          "skipConnectionCreation": {
+            "value": "[parameters('skipConnectionCreation')]"
+          },
+          "skipRoleAssignments": {
+            "value": "[parameters('skipRoleAssignments')]"
           }
         },
         "template": {
@@ -232,7 +266,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.43.8.12551",
-              "templateHash": "8306645872917631453"
+              "templateHash": "4592198177996470626"
             }
           },
           "definitions": {
@@ -392,6 +426,20 @@
               "defaultValue": false,
               "metadata": {
                 "description": "Enable hosted agent deployment"
+              }
+            },
+            "skipConnectionCreation": {
+              "type": "bool",
+              "defaultValue": false,
+              "metadata": {
+                "description": "Set to true to skip creating connections that already exist (for idempotent re-runs)"
+              }
+            },
+            "skipRoleAssignments": {
+              "type": "bool",
+              "defaultValue": false,
+              "metadata": {
+                "description": "Set to true to skip creating role assignments that already exist (for idempotent re-runs)"
               }
             }
           },
@@ -624,7 +672,7 @@
               }
             },
             "appInsightConnection": {
-              "condition": "[parameters('enableMonitoring')]",
+              "condition": "[and(parameters('enableMonitoring'), not(parameters('skipConnectionCreation')))]",
               "type": "Microsoft.CognitiveServices/accounts/projects/connections",
               "apiVersion": "2025-04-01-preview",
               "name": "[format('{0}/{1}/{2}', if(not(empty(parameters('existingAiAccountName'))), parameters('existingAiAccountName'), format('ai-account-{0}', variables('resourceToken'))), parameters('aiFoundryProjectName'), 'appi-connection')]",
@@ -647,6 +695,7 @@
               ]
             },
             "localUserAiDeveloperRoleAssignment": {
+              "condition": "[not(parameters('skipRoleAssignments'))]",
               "type": "Microsoft.Authorization/roleAssignments",
               "apiVersion": "2022-04-01",
               "name": "[guid(subscription().id, resourceGroup().id, parameters('principalId'), '64702f94-c441-49e6-a78b-ef80e0188fee')]",
@@ -657,6 +706,7 @@
               }
             },
             "localUserCognitiveServicesUserRoleAssignment": {
+              "condition": "[not(parameters('skipRoleAssignments'))]",
               "type": "Microsoft.Authorization/roleAssignments",
               "apiVersion": "2022-04-01",
               "name": "[guid(subscription().id, resourceGroup().id, parameters('principalId'), 'a97b65f3-24c7-4388-baec-2e87135dc908')]",
@@ -667,6 +717,7 @@
               }
             },
             "projectCognitiveServicesUserRoleAssignment": {
+              "condition": "[not(parameters('skipRoleAssignments'))]",
               "type": "Microsoft.Authorization/roleAssignments",
               "apiVersion": "2022-04-01",
               "scope": "[resourceId('Microsoft.CognitiveServices/accounts', if(not(empty(parameters('existingAiAccountName'))), parameters('existingAiAccountName'), format('ai-account-{0}', variables('resourceToken'))))]",
@@ -876,6 +927,9 @@
                   },
                   "apiKey": {
                     "value": ""
+                  },
+                  "skipCreation": {
+                    "value": "[parameters('skipConnectionCreation')]"
                   }
                 },
                 "template": {
@@ -886,7 +940,7 @@
                     "_generator": {
                       "name": "bicep",
                       "version": "0.43.8.12551",
-                      "templateHash": "12324168241062309748"
+                      "templateHash": "13243462901404279502"
                     }
                   },
                   "definitions": {
@@ -980,6 +1034,13 @@
                       "metadata": {
                         "description": "API key for ApiKey based connections (optional)"
                       }
+                    },
+                    "skipCreation": {
+                      "type": "bool",
+                      "defaultValue": false,
+                      "metadata": {
+                        "description": "Set to true to reference an existing connection instead of creating a new one (idempotent re-runs)"
+                      }
                     }
                   },
                   "resources": {
@@ -995,7 +1056,15 @@
                       "apiVersion": "2025-04-01-preview",
                       "name": "[parameters('aiServicesAccountName')]"
                     },
+                    "existingConnection": {
+                      "condition": "[parameters('skipCreation')]",
+                      "existing": true,
+                      "type": "Microsoft.CognitiveServices/accounts/projects/connections",
+                      "apiVersion": "2025-04-01-preview",
+                      "name": "[format('{0}/{1}/{2}', parameters('aiServicesAccountName'), parameters('aiProjectName'), parameters('connectionConfig').name)]"
+                    },
                     "connection": {
+                      "condition": "[not(parameters('skipCreation'))]",
                       "type": "Microsoft.CognitiveServices/accounts/projects/connections",
                       "apiVersion": "2025-04-01-preview",
                       "name": "[format('{0}/{1}/{2}', parameters('aiServicesAccountName'), parameters('aiProjectName'), parameters('connectionConfig').name)]",
@@ -1012,11 +1081,11 @@
                   "outputs": {
                     "connectionName": {
                       "type": "string",
-                      "value": "[parameters('connectionConfig').name]"
+                      "value": "[if(parameters('skipCreation'), parameters('connectionConfig').name, parameters('connectionConfig').name)]"
                     },
                     "connectionId": {
                       "type": "string",
-                      "value": "[resourceId('Microsoft.CognitiveServices/accounts/projects/connections', parameters('aiServicesAccountName'), parameters('aiProjectName'), parameters('connectionConfig').name)]"
+                      "value": "[if(parameters('skipCreation'), resourceId('Microsoft.CognitiveServices/accounts/projects/connections', parameters('aiServicesAccountName'), parameters('aiProjectName'), parameters('connectionConfig').name), resourceId('Microsoft.CognitiveServices/accounts/projects/connections', parameters('aiServicesAccountName'), parameters('aiProjectName'), parameters('connectionConfig').name))]"
                     }
                   }
                 }
@@ -1060,6 +1129,12 @@
                   },
                   "aiProjectName": {
                     "value": "[parameters('aiFoundryProjectName')]"
+                  },
+                  "skipConnectionCreation": {
+                    "value": "[parameters('skipConnectionCreation')]"
+                  },
+                  "skipRoleAssignments": {
+                    "value": "[parameters('skipRoleAssignments')]"
                   }
                 },
                 "template": {
@@ -1069,7 +1144,7 @@
                     "_generator": {
                       "name": "bicep",
                       "version": "0.43.8.12551",
-                      "templateHash": "972994227061207534"
+                      "templateHash": "14403455184078494496"
                     }
                   },
                   "parameters": {
@@ -1125,6 +1200,20 @@
                       "metadata": {
                         "description": "Name for the AI Foundry storage connection"
                       }
+                    },
+                    "skipConnectionCreation": {
+                      "type": "bool",
+                      "defaultValue": false,
+                      "metadata": {
+                        "description": "Set to true to skip creating the connection if it already exists (idempotent re-runs)"
+                      }
+                    },
+                    "skipRoleAssignments": {
+                      "type": "bool",
+                      "defaultValue": false,
+                      "metadata": {
+                        "description": "Set to true to skip creating role assignments that already exist (idempotent re-runs)"
+                      }
                     }
                   },
                   "resources": [
@@ -1160,7 +1249,7 @@
                       }
                     },
                     {
-                      "condition": "[and(not(empty(parameters('aiServicesAccountName'))), not(empty(parameters('aiProjectName'))))]",
+                      "condition": "[and(and(not(empty(parameters('aiServicesAccountName'))), not(empty(parameters('aiProjectName')))), not(parameters('skipRoleAssignments')))]",
                       "type": "Microsoft.Authorization/roleAssignments",
                       "apiVersion": "2022-04-01",
                       "scope": "[resourceId('Microsoft.Storage/storageAccounts', parameters('resourceName'))]",
@@ -1175,6 +1264,7 @@
                       ]
                     },
                     {
+                      "condition": "[not(parameters('skipRoleAssignments'))]",
                       "type": "Microsoft.Authorization/roleAssignments",
                       "apiVersion": "2022-04-01",
                       "scope": "[resourceId('Microsoft.Storage/storageAccounts', parameters('resourceName'))]",
@@ -1218,6 +1308,9 @@
                                 "location": "[reference(resourceId('Microsoft.Storage/storageAccounts', parameters('resourceName')), '2023-05-01', 'full').location]"
                               }
                             }
+                          },
+                          "skipCreation": {
+                            "value": "[parameters('skipConnectionCreation')]"
                           }
                         },
                         "template": {
@@ -1228,7 +1321,7 @@
                             "_generator": {
                               "name": "bicep",
                               "version": "0.43.8.12551",
-                              "templateHash": "12324168241062309748"
+                              "templateHash": "13243462901404279502"
                             }
                           },
                           "definitions": {
@@ -1322,6 +1415,13 @@
                               "metadata": {
                                 "description": "API key for ApiKey based connections (optional)"
                               }
+                            },
+                            "skipCreation": {
+                              "type": "bool",
+                              "defaultValue": false,
+                              "metadata": {
+                                "description": "Set to true to reference an existing connection instead of creating a new one (idempotent re-runs)"
+                              }
                             }
                           },
                           "resources": {
@@ -1337,7 +1437,15 @@
                               "apiVersion": "2025-04-01-preview",
                               "name": "[parameters('aiServicesAccountName')]"
                             },
+                            "existingConnection": {
+                              "condition": "[parameters('skipCreation')]",
+                              "existing": true,
+                              "type": "Microsoft.CognitiveServices/accounts/projects/connections",
+                              "apiVersion": "2025-04-01-preview",
+                              "name": "[format('{0}/{1}/{2}', parameters('aiServicesAccountName'), parameters('aiProjectName'), parameters('connectionConfig').name)]"
+                            },
                             "connection": {
+                              "condition": "[not(parameters('skipCreation'))]",
                               "type": "Microsoft.CognitiveServices/accounts/projects/connections",
                               "apiVersion": "2025-04-01-preview",
                               "name": "[format('{0}/{1}/{2}', parameters('aiServicesAccountName'), parameters('aiProjectName'), parameters('connectionConfig').name)]",
@@ -1354,11 +1462,11 @@
                           "outputs": {
                             "connectionName": {
                               "type": "string",
-                              "value": "[parameters('connectionConfig').name]"
+                              "value": "[if(parameters('skipCreation'), parameters('connectionConfig').name, parameters('connectionConfig').name)]"
                             },
                             "connectionId": {
                               "type": "string",
-                              "value": "[resourceId('Microsoft.CognitiveServices/accounts/projects/connections', parameters('aiServicesAccountName'), parameters('aiProjectName'), parameters('connectionConfig').name)]"
+                              "value": "[if(parameters('skipCreation'), resourceId('Microsoft.CognitiveServices/accounts/projects/connections', parameters('aiServicesAccountName'), parameters('aiProjectName'), parameters('connectionConfig').name), resourceId('Microsoft.CognitiveServices/accounts/projects/connections', parameters('aiServicesAccountName'), parameters('aiProjectName'), parameters('connectionConfig').name))]"
                             }
                           }
                         }
@@ -1427,6 +1535,12 @@
                   },
                   "aiProjectName": {
                     "value": "[parameters('aiFoundryProjectName')]"
+                  },
+                  "skipConnectionCreation": {
+                    "value": "[parameters('skipConnectionCreation')]"
+                  },
+                  "skipRoleAssignments": {
+                    "value": "[parameters('skipRoleAssignments')]"
                   }
                 },
                 "template": {
@@ -1436,7 +1550,7 @@
                     "_generator": {
                       "name": "bicep",
                       "version": "0.43.8.12551",
-                      "templateHash": "17702918828672179024"
+                      "templateHash": "1562607308510254376"
                     }
                   },
                   "parameters": {
@@ -1492,6 +1606,20 @@
                       "metadata": {
                         "description": "Name for the AI Foundry ACR connection"
                       }
+                    },
+                    "skipConnectionCreation": {
+                      "type": "bool",
+                      "defaultValue": false,
+                      "metadata": {
+                        "description": "Set to true to skip creating the connection if it already exists (idempotent re-runs)"
+                      }
+                    },
+                    "skipRoleAssignments": {
+                      "type": "bool",
+                      "defaultValue": false,
+                      "metadata": {
+                        "description": "Set to true to skip creating role assignments that already exist (idempotent re-runs)"
+                      }
                     }
                   },
                   "resources": [
@@ -1517,20 +1645,7 @@
                           "publicNetworkAccess": {
                             "value": "Enabled"
                           },
-                          "roleAssignments": {
-                            "value": [
-                              {
-                                "principalId": "[parameters('principalId')]",
-                                "principalType": "[parameters('principalType')]",
-                                "roleDefinitionIdOrName": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d')]"
-                              },
-                              {
-                                "principalId": "[reference(resourceId('Microsoft.CognitiveServices/accounts/projects', parameters('aiServicesAccountName'), parameters('aiProjectName')), '2025-04-01-preview', 'full').identity.principalId]",
-                                "principalType": "ServicePrincipal",
-                                "roleDefinitionIdOrName": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d')]"
-                              }
-                            ]
-                          }
+                          "roleAssignments": "[if(parameters('skipRoleAssignments'), createObject('value', createArray()), createObject('value', createArray(createObject('principalId', parameters('principalId'), 'principalType', parameters('principalType'), 'roleDefinitionIdOrName', subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d')), createObject('principalId', reference(resourceId('Microsoft.CognitiveServices/accounts/projects', parameters('aiServicesAccountName'), parameters('aiProjectName')), '2025-04-01-preview', 'full').identity.principalId, 'principalType', 'ServicePrincipal', 'roleDefinitionIdOrName', subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d')))))]"
                         },
                         "template": {
                           "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
@@ -3670,6 +3785,9 @@
                                 "ResourceId": "[reference(resourceId('Microsoft.Resources/deployments', 'registry'), '2025-04-01').outputs.resourceId.value]"
                               }
                             }
+                          },
+                          "skipCreation": {
+                            "value": "[parameters('skipConnectionCreation')]"
                           }
                         },
                         "template": {
@@ -3680,7 +3798,7 @@
                             "_generator": {
                               "name": "bicep",
                               "version": "0.43.8.12551",
-                              "templateHash": "12324168241062309748"
+                              "templateHash": "13243462901404279502"
                             }
                           },
                           "definitions": {
@@ -3774,6 +3892,13 @@
                               "metadata": {
                                 "description": "API key for ApiKey based connections (optional)"
                               }
+                            },
+                            "skipCreation": {
+                              "type": "bool",
+                              "defaultValue": false,
+                              "metadata": {
+                                "description": "Set to true to reference an existing connection instead of creating a new one (idempotent re-runs)"
+                              }
                             }
                           },
                           "resources": {
@@ -3789,7 +3914,15 @@
                               "apiVersion": "2025-04-01-preview",
                               "name": "[parameters('aiServicesAccountName')]"
                             },
+                            "existingConnection": {
+                              "condition": "[parameters('skipCreation')]",
+                              "existing": true,
+                              "type": "Microsoft.CognitiveServices/accounts/projects/connections",
+                              "apiVersion": "2025-04-01-preview",
+                              "name": "[format('{0}/{1}/{2}', parameters('aiServicesAccountName'), parameters('aiProjectName'), parameters('connectionConfig').name)]"
+                            },
                             "connection": {
+                              "condition": "[not(parameters('skipCreation'))]",
                               "type": "Microsoft.CognitiveServices/accounts/projects/connections",
                               "apiVersion": "2025-04-01-preview",
                               "name": "[format('{0}/{1}/{2}', parameters('aiServicesAccountName'), parameters('aiProjectName'), parameters('connectionConfig').name)]",
@@ -3806,11 +3939,11 @@
                           "outputs": {
                             "connectionName": {
                               "type": "string",
-                              "value": "[parameters('connectionConfig').name]"
+                              "value": "[if(parameters('skipCreation'), parameters('connectionConfig').name, parameters('connectionConfig').name)]"
                             },
                             "connectionId": {
                               "type": "string",
-                              "value": "[resourceId('Microsoft.CognitiveServices/accounts/projects/connections', parameters('aiServicesAccountName'), parameters('aiProjectName'), parameters('connectionConfig').name)]"
+                              "value": "[if(parameters('skipCreation'), resourceId('Microsoft.CognitiveServices/accounts/projects/connections', parameters('aiServicesAccountName'), parameters('aiProjectName'), parameters('connectionConfig').name), resourceId('Microsoft.CognitiveServices/accounts/projects/connections', parameters('aiServicesAccountName'), parameters('aiProjectName'), parameters('connectionConfig').name))]"
                             }
                           }
                         }
@@ -3870,6 +4003,12 @@
                   },
                   "aiProjectName": {
                     "value": "[parameters('aiFoundryProjectName')]"
+                  },
+                  "skipConnectionCreation": {
+                    "value": "[parameters('skipConnectionCreation')]"
+                  },
+                  "skipRoleAssignments": {
+                    "value": "[parameters('skipRoleAssignments')]"
                   }
                 },
                 "template": {
@@ -3879,7 +4018,7 @@
                     "_generator": {
                       "name": "bicep",
                       "version": "0.43.8.12551",
-                      "templateHash": "13929819457942117530"
+                      "templateHash": "13947056682600062831"
                     }
                   },
                   "parameters": {
@@ -3916,6 +4055,20 @@
                       "metadata": {
                         "description": "Name for the AI Foundry Bing Search connection"
                       }
+                    },
+                    "skipConnectionCreation": {
+                      "type": "bool",
+                      "defaultValue": false,
+                      "metadata": {
+                        "description": "Set to true to skip creating the connection if it already exists (idempotent re-runs)"
+                      }
+                    },
+                    "skipRoleAssignments": {
+                      "type": "bool",
+                      "defaultValue": false,
+                      "metadata": {
+                        "description": "Set to true to skip creating role assignments that already exist (idempotent re-runs)"
+                      }
                     }
                   },
                   "resources": [
@@ -3934,7 +4087,7 @@
                       "kind": "Bing.Grounding"
                     },
                     {
-                      "condition": "[and(not(empty(parameters('aiServicesAccountName'))), not(empty(parameters('aiProjectName'))))]",
+                      "condition": "[and(and(not(empty(parameters('aiServicesAccountName'))), not(empty(parameters('aiProjectName')))), not(parameters('skipRoleAssignments')))]",
                       "type": "Microsoft.Authorization/roleAssignments",
                       "apiVersion": "2022-04-01",
                       "scope": "[resourceId('Microsoft.Bing/accounts', parameters('resourceName'))]",
@@ -3982,6 +4135,9 @@
                           },
                           "apiKey": {
                             "value": "[listKeys(resourceId('Microsoft.Bing/accounts', parameters('resourceName')), '2020-06-10').key1]"
+                          },
+                          "skipCreation": {
+                            "value": "[parameters('skipConnectionCreation')]"
                           }
                         },
                         "template": {
@@ -3992,7 +4148,7 @@
                             "_generator": {
                               "name": "bicep",
                               "version": "0.43.8.12551",
-                              "templateHash": "12324168241062309748"
+                              "templateHash": "13243462901404279502"
                             }
                           },
                           "definitions": {
@@ -4086,6 +4242,13 @@
                               "metadata": {
                                 "description": "API key for ApiKey based connections (optional)"
                               }
+                            },
+                            "skipCreation": {
+                              "type": "bool",
+                              "defaultValue": false,
+                              "metadata": {
+                                "description": "Set to true to reference an existing connection instead of creating a new one (idempotent re-runs)"
+                              }
                             }
                           },
                           "resources": {
@@ -4101,7 +4264,15 @@
                               "apiVersion": "2025-04-01-preview",
                               "name": "[parameters('aiServicesAccountName')]"
                             },
+                            "existingConnection": {
+                              "condition": "[parameters('skipCreation')]",
+                              "existing": true,
+                              "type": "Microsoft.CognitiveServices/accounts/projects/connections",
+                              "apiVersion": "2025-04-01-preview",
+                              "name": "[format('{0}/{1}/{2}', parameters('aiServicesAccountName'), parameters('aiProjectName'), parameters('connectionConfig').name)]"
+                            },
                             "connection": {
+                              "condition": "[not(parameters('skipCreation'))]",
                               "type": "Microsoft.CognitiveServices/accounts/projects/connections",
                               "apiVersion": "2025-04-01-preview",
                               "name": "[format('{0}/{1}/{2}', parameters('aiServicesAccountName'), parameters('aiProjectName'), parameters('connectionConfig').name)]",
@@ -4118,11 +4289,11 @@
                           "outputs": {
                             "connectionName": {
                               "type": "string",
-                              "value": "[parameters('connectionConfig').name]"
+                              "value": "[if(parameters('skipCreation'), parameters('connectionConfig').name, parameters('connectionConfig').name)]"
                             },
                             "connectionId": {
                               "type": "string",
-                              "value": "[resourceId('Microsoft.CognitiveServices/accounts/projects/connections', parameters('aiServicesAccountName'), parameters('aiProjectName'), parameters('connectionConfig').name)]"
+                              "value": "[if(parameters('skipCreation'), resourceId('Microsoft.CognitiveServices/accounts/projects/connections', parameters('aiServicesAccountName'), parameters('aiProjectName'), parameters('connectionConfig').name), resourceId('Microsoft.CognitiveServices/accounts/projects/connections', parameters('aiServicesAccountName'), parameters('aiProjectName'), parameters('connectionConfig').name))]"
                             }
                           }
                         }
@@ -4183,6 +4354,12 @@
                   },
                   "aiProjectName": {
                     "value": "[parameters('aiFoundryProjectName')]"
+                  },
+                  "skipConnectionCreation": {
+                    "value": "[parameters('skipConnectionCreation')]"
+                  },
+                  "skipRoleAssignments": {
+                    "value": "[parameters('skipRoleAssignments')]"
                   }
                 },
                 "template": {
@@ -4192,7 +4369,7 @@
                     "_generator": {
                       "name": "bicep",
                       "version": "0.43.8.12551",
-                      "templateHash": "17703251402776677933"
+                      "templateHash": "16705327243401456030"
                     }
                   },
                   "parameters": {
@@ -4229,6 +4406,20 @@
                       "metadata": {
                         "description": "Name for the AI Foundry Bing Custom Search connection"
                       }
+                    },
+                    "skipConnectionCreation": {
+                      "type": "bool",
+                      "defaultValue": false,
+                      "metadata": {
+                        "description": "Set to true to skip creating the connection if it already exists (idempotent re-runs)"
+                      }
+                    },
+                    "skipRoleAssignments": {
+                      "type": "bool",
+                      "defaultValue": false,
+                      "metadata": {
+                        "description": "Set to true to skip creating role assignments that already exist (idempotent re-runs)"
+                      }
                     }
                   },
                   "resources": [
@@ -4256,7 +4447,7 @@
                       ]
                     },
                     {
-                      "condition": "[and(not(empty(parameters('aiServicesAccountName'))), not(empty(parameters('aiProjectName'))))]",
+                      "condition": "[and(and(not(empty(parameters('aiServicesAccountName'))), not(empty(parameters('aiProjectName')))), not(parameters('skipRoleAssignments')))]",
                       "type": "Microsoft.Authorization/roleAssignments",
                       "apiVersion": "2022-04-01",
                       "scope": "[resourceId('Microsoft.Bing/accounts', parameters('resourceName'))]",
@@ -4304,6 +4495,9 @@
                           },
                           "apiKey": {
                             "value": "[listKeys(resourceId('Microsoft.Bing/accounts', parameters('resourceName')), '2020-06-10').key1]"
+                          },
+                          "skipCreation": {
+                            "value": "[parameters('skipConnectionCreation')]"
                           }
                         },
                         "template": {
@@ -4314,7 +4508,7 @@
                             "_generator": {
                               "name": "bicep",
                               "version": "0.43.8.12551",
-                              "templateHash": "12324168241062309748"
+                              "templateHash": "13243462901404279502"
                             }
                           },
                           "definitions": {
@@ -4408,6 +4602,13 @@
                               "metadata": {
                                 "description": "API key for ApiKey based connections (optional)"
                               }
+                            },
+                            "skipCreation": {
+                              "type": "bool",
+                              "defaultValue": false,
+                              "metadata": {
+                                "description": "Set to true to reference an existing connection instead of creating a new one (idempotent re-runs)"
+                              }
                             }
                           },
                           "resources": {
@@ -4423,7 +4624,15 @@
                               "apiVersion": "2025-04-01-preview",
                               "name": "[parameters('aiServicesAccountName')]"
                             },
+                            "existingConnection": {
+                              "condition": "[parameters('skipCreation')]",
+                              "existing": true,
+                              "type": "Microsoft.CognitiveServices/accounts/projects/connections",
+                              "apiVersion": "2025-04-01-preview",
+                              "name": "[format('{0}/{1}/{2}', parameters('aiServicesAccountName'), parameters('aiProjectName'), parameters('connectionConfig').name)]"
+                            },
                             "connection": {
+                              "condition": "[not(parameters('skipCreation'))]",
                               "type": "Microsoft.CognitiveServices/accounts/projects/connections",
                               "apiVersion": "2025-04-01-preview",
                               "name": "[format('{0}/{1}/{2}', parameters('aiServicesAccountName'), parameters('aiProjectName'), parameters('connectionConfig').name)]",
@@ -4440,11 +4649,11 @@
                           "outputs": {
                             "connectionName": {
                               "type": "string",
-                              "value": "[parameters('connectionConfig').name]"
+                              "value": "[if(parameters('skipCreation'), parameters('connectionConfig').name, parameters('connectionConfig').name)]"
                             },
                             "connectionId": {
                               "type": "string",
-                              "value": "[resourceId('Microsoft.CognitiveServices/accounts/projects/connections', parameters('aiServicesAccountName'), parameters('aiProjectName'), parameters('connectionConfig').name)]"
+                              "value": "[if(parameters('skipCreation'), resourceId('Microsoft.CognitiveServices/accounts/projects/connections', parameters('aiServicesAccountName'), parameters('aiProjectName'), parameters('connectionConfig').name), resourceId('Microsoft.CognitiveServices/accounts/projects/connections', parameters('aiServicesAccountName'), parameters('aiProjectName'), parameters('connectionConfig').name))]"
                             }
                           }
                         }
@@ -4518,6 +4727,12 @@
                   },
                   "location": {
                     "value": "[parameters('location')]"
+                  },
+                  "skipConnectionCreation": {
+                    "value": "[parameters('skipConnectionCreation')]"
+                  },
+                  "skipRoleAssignments": {
+                    "value": "[parameters('skipRoleAssignments')]"
                   }
                 },
                 "template": {
@@ -4527,7 +4742,7 @@
                     "_generator": {
                       "name": "bicep",
                       "version": "0.43.8.12551",
-                      "templateHash": "10360110841373561780"
+                      "templateHash": "652988591493197667"
                     }
                   },
                   "parameters": {
@@ -4590,6 +4805,20 @@
                       "metadata": {
                         "description": "Location for all resources"
                       }
+                    },
+                    "skipConnectionCreation": {
+                      "type": "bool",
+                      "defaultValue": false,
+                      "metadata": {
+                        "description": "Set to true to skip creating the connection if it already exists (idempotent re-runs)"
+                      }
+                    },
+                    "skipRoleAssignments": {
+                      "type": "bool",
+                      "defaultValue": false,
+                      "metadata": {
+                        "description": "Set to true to skip creating role assignments that already exist (idempotent re-runs)"
+                      }
                     }
                   },
                   "resources": [
@@ -4622,10 +4851,10 @@
                       }
                     },
                     {
-                      "condition": "[not(empty(parameters('aiServicesAccountName')))]",
+                      "condition": "[and(not(empty(parameters('aiServicesAccountName'))), not(parameters('skipRoleAssignments')))]",
                       "type": "Microsoft.Authorization/roleAssignments",
                       "apiVersion": "2022-04-01",
-                      "name": "[guid(parameters('aiServicesAccountName'), resourceId('Microsoft.Search/searchServices', parameters('resourceName')), 'Cognitive Services OpenAI User', uniqueString(deployment().name))]",
+                      "name": "[guid(parameters('aiServicesAccountName'), resourceId('Microsoft.Search/searchServices', parameters('resourceName')), 'Cognitive Services OpenAI User')]",
                       "properties": {
                         "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '5e0bd9bd-7b93-4f28-af87-19fc36ad61bd')]",
                         "principalId": "[reference(resourceId('Microsoft.Search/searchServices', parameters('resourceName')), '2024-06-01-preview', 'full').identity.principalId]",
@@ -4636,11 +4865,11 @@
                       ]
                     },
                     {
-                      "condition": "[and(not(empty(parameters('aiServicesAccountName'))), not(empty(parameters('aiProjectName'))))]",
+                      "condition": "[and(and(not(empty(parameters('aiServicesAccountName'))), not(empty(parameters('aiProjectName')))), not(parameters('skipRoleAssignments')))]",
                       "type": "Microsoft.Authorization/roleAssignments",
                       "apiVersion": "2022-04-01",
                       "scope": "[resourceId('Microsoft.Search/searchServices', parameters('resourceName'))]",
-                      "name": "[guid(resourceId('Microsoft.Search/searchServices', parameters('resourceName')), parameters('aiServicesAccountName'), parameters('aiProjectName'), 'Search Service Contributor', uniqueString(deployment().name))]",
+                      "name": "[guid(resourceId('Microsoft.Search/searchServices', parameters('resourceName')), parameters('aiServicesAccountName'), parameters('aiProjectName'), 'Search Service Contributor')]",
                       "properties": {
                         "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7ca78c08-252a-4471-8644-bb5ff32d4ba0')]",
                         "principalId": "[reference(resourceId('Microsoft.CognitiveServices/accounts/projects', parameters('aiServicesAccountName'), parameters('aiProjectName')), '2025-04-01-preview', 'full').identity.principalId]",
@@ -4651,11 +4880,11 @@
                       ]
                     },
                     {
-                      "condition": "[and(not(empty(parameters('aiServicesAccountName'))), not(empty(parameters('aiProjectName'))))]",
+                      "condition": "[and(and(not(empty(parameters('aiServicesAccountName'))), not(empty(parameters('aiProjectName')))), not(parameters('skipRoleAssignments')))]",
                       "type": "Microsoft.Authorization/roleAssignments",
                       "apiVersion": "2022-04-01",
                       "scope": "[resourceId('Microsoft.Search/searchServices', parameters('resourceName'))]",
-                      "name": "[guid(resourceId('Microsoft.Search/searchServices', parameters('resourceName')), parameters('aiServicesAccountName'), parameters('aiProjectName'), 'Search Index Data Contributor', uniqueString(deployment().name))]",
+                      "name": "[guid(resourceId('Microsoft.Search/searchServices', parameters('resourceName')), parameters('aiServicesAccountName'), parameters('aiProjectName'), 'Search Index Data Contributor')]",
                       "properties": {
                         "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '8ebe5a00-799e-43f5-93ac-243d3dce84a7')]",
                         "principalId": "[reference(resourceId('Microsoft.CognitiveServices/accounts/projects', parameters('aiServicesAccountName'), parameters('aiProjectName')), '2025-04-01-preview', 'full').identity.principalId]",
@@ -4666,10 +4895,11 @@
                       ]
                     },
                     {
+                      "condition": "[not(parameters('skipRoleAssignments'))]",
                       "type": "Microsoft.Authorization/roleAssignments",
                       "apiVersion": "2022-04-01",
                       "scope": "[resourceId('Microsoft.Search/searchServices', parameters('resourceName'))]",
-                      "name": "[guid(resourceId('Microsoft.Search/searchServices', parameters('resourceName')), parameters('principalId'), 'Search Index Data Contributor', uniqueString(deployment().name))]",
+                      "name": "[guid(resourceId('Microsoft.Search/searchServices', parameters('resourceName')), parameters('principalId'), 'Search Index Data Contributor')]",
                       "properties": {
                         "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '8ebe5a00-799e-43f5-93ac-243d3dce84a7')]",
                         "principalId": "[parameters('principalId')]",
@@ -4710,6 +4940,9 @@
                                 "type": "azure_ai_search"
                               }
                             }
+                          },
+                          "skipCreation": {
+                            "value": "[parameters('skipConnectionCreation')]"
                           }
                         },
                         "template": {
@@ -4720,7 +4953,7 @@
                             "_generator": {
                               "name": "bicep",
                               "version": "0.43.8.12551",
-                              "templateHash": "12324168241062309748"
+                              "templateHash": "13243462901404279502"
                             }
                           },
                           "definitions": {
@@ -4814,6 +5047,13 @@
                               "metadata": {
                                 "description": "API key for ApiKey based connections (optional)"
                               }
+                            },
+                            "skipCreation": {
+                              "type": "bool",
+                              "defaultValue": false,
+                              "metadata": {
+                                "description": "Set to true to reference an existing connection instead of creating a new one (idempotent re-runs)"
+                              }
                             }
                           },
                           "resources": {
@@ -4829,7 +5069,15 @@
                               "apiVersion": "2025-04-01-preview",
                               "name": "[parameters('aiServicesAccountName')]"
                             },
+                            "existingConnection": {
+                              "condition": "[parameters('skipCreation')]",
+                              "existing": true,
+                              "type": "Microsoft.CognitiveServices/accounts/projects/connections",
+                              "apiVersion": "2025-04-01-preview",
+                              "name": "[format('{0}/{1}/{2}', parameters('aiServicesAccountName'), parameters('aiProjectName'), parameters('connectionConfig').name)]"
+                            },
                             "connection": {
+                              "condition": "[not(parameters('skipCreation'))]",
                               "type": "Microsoft.CognitiveServices/accounts/projects/connections",
                               "apiVersion": "2025-04-01-preview",
                               "name": "[format('{0}/{1}/{2}', parameters('aiServicesAccountName'), parameters('aiProjectName'), parameters('connectionConfig').name)]",
@@ -4846,17 +5094,17 @@
                           "outputs": {
                             "connectionName": {
                               "type": "string",
-                              "value": "[parameters('connectionConfig').name]"
+                              "value": "[if(parameters('skipCreation'), parameters('connectionConfig').name, parameters('connectionConfig').name)]"
                             },
                             "connectionId": {
                               "type": "string",
-                              "value": "[resourceId('Microsoft.CognitiveServices/accounts/projects/connections', parameters('aiServicesAccountName'), parameters('aiProjectName'), parameters('connectionConfig').name)]"
+                              "value": "[if(parameters('skipCreation'), resourceId('Microsoft.CognitiveServices/accounts/projects/connections', parameters('aiServicesAccountName'), parameters('aiProjectName'), parameters('connectionConfig').name), resourceId('Microsoft.CognitiveServices/accounts/projects/connections', parameters('aiServicesAccountName'), parameters('aiProjectName'), parameters('connectionConfig').name))]"
                             }
                           }
                         }
                       },
                       "dependsOn": [
-                        "[extensionResourceId(resourceId('Microsoft.Search/searchServices', parameters('resourceName')), 'Microsoft.Authorization/roleAssignments', guid(resourceId('Microsoft.Search/searchServices', parameters('resourceName')), parameters('aiServicesAccountName'), parameters('aiProjectName'), 'Search Index Data Contributor', uniqueString(deployment().name)))]",
+                        "[extensionResourceId(resourceId('Microsoft.Search/searchServices', parameters('resourceName')), 'Microsoft.Authorization/roleAssignments', guid(resourceId('Microsoft.Search/searchServices', parameters('resourceName')), parameters('aiServicesAccountName'), parameters('aiProjectName'), 'Search Index Data Contributor'))]",
                         "[resourceId('Microsoft.Search/searchServices', parameters('resourceName'))]"
                       ]
                     }
@@ -5346,9 +5594,17 @@
       "type": "string",
       "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'ai-project'), '2025-04-01').outputs.dependentResources.value.search.endpoint]"
     },
-    "AZURE_SEARCH_INDEX_NAME": {
+    "AZURE_SEARCH_SUPPLIER_INDEX_NAME": {
       "type": "string",
-      "value": "[parameters('searchIndexName')]"
+      "value": "[parameters('supplierIndexName')]"
+    },
+    "AZURE_SEARCH_CATEGORY_INDEX_NAME": {
+      "type": "string",
+      "value": "[parameters('categoryIndexName')]"
+    },
+    "AZURE_SEARCH_ITEM_INDEX_NAME": {
+      "type": "string",
+      "value": "[parameters('itemIndexName')]"
     },
     "AZURE_SEARCH_ADMIN_KEY": {
       "type": "string",

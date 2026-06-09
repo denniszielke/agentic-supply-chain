@@ -31,11 +31,14 @@ def deploy() -> None:
 
     client = get_client()
     source_path = Path(__file__).resolve().parents[1]
-    image_tag = build_image(registry, agent_name, source_path)
+    dockerfile = str(source_path / "src" / "shopping_agent" / "Dockerfile")
+    image_tag = build_image(registry, agent_name, source_path, dockerfile=dockerfile)
 
     env_vars = {
         "AZURE_SEARCH_ENDPOINT": os.getenv("AZURE_SEARCH_ENDPOINT", ""),
-        "AZURE_SEARCH_INDEX_NAME": os.getenv("AZURE_SEARCH_INDEX_NAME", "offers-index"),
+        "AZURE_SEARCH_SUPPLIER_INDEX_NAME": os.getenv("AZURE_SEARCH_SUPPLIER_INDEX_NAME", "retail-suppliers"),
+        "AZURE_SEARCH_CATEGORY_INDEX_NAME": os.getenv("AZURE_SEARCH_CATEGORY_INDEX_NAME", "retail-categories"),
+        "AZURE_SEARCH_ITEM_INDEX_NAME": os.getenv("AZURE_SEARCH_ITEM_INDEX_NAME", "retail-items"),
         "AZURE_SEARCH_ADMIN_KEY": os.getenv("AZURE_SEARCH_ADMIN_KEY", ""),
         "APPLICATIONINSIGHTS_CONNECTION_STRING": os.getenv("APPLICATIONINSIGHTS_CONNECTION_STRING", ""),
         "AZURE_AI_PROJECT_ENDPOINT": project_endpoint,

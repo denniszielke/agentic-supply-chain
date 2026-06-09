@@ -24,6 +24,12 @@ param aiProjectName string = ''
 @description('Name for the AI Foundry storage connection')
 param connectionName string = 'storage-connection'
 
+@description('Set to true to skip creating the connection if it already exists (idempotent re-runs)')
+param skipConnectionCreation bool = false
+
+@description('Set to true to skip creating role assignments that already exist (idempotent re-runs)')
+param skipRoleAssignments bool = false
+
 resource storageAccount 'Microsoft.Storage/storageAccounts@2023-05-01' = {
   name: resourceName
   location: location
@@ -62,7 +68,7 @@ resource aiAccount 'Microsoft.CognitiveServices/accounts@2025-04-01-preview' exi
   }
 }
 
-resource storageRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!empty(aiServicesAccountName) && !empty(aiProjectName)) {
+resource storageRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!empty(aiServicesAccountName) && !empty(aiProjectName) && !skipRoleAssignments) {
   name: guid(storageAccount.id, aiAccount.id, 'ai-storage-contributor')
   scope: storageAccount
   properties: {
@@ -72,7 +78,7 @@ resource storageRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-
   }
 }
 
-resource userStorageRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+resource userStorageRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!skipRoleAssignments) {
   name: guid(storageAccount.id, principalId, 'Storage Blob Data Contributor')
   scope: storageAccount
   properties: {
@@ -99,6 +105,7 @@ module storageConnection '../ai/connection.bicep' = if (!empty(aiServicesAccount
         location: storageAccount.location
       }
     }
+    skipCreation: skipConnectionCreation
   }
 }
 

@@ -24,6 +24,12 @@ param aiProjectName string = ''
 @description('Name for the AI Foundry ACR connection')
 param connectionName string = 'acr-connection'
 
+@description('Set to true to skip creating the connection if it already exists (idempotent re-runs)')
+param skipConnectionCreation bool = false
+
+@description('Set to true to skip creating role assignments that already exist (idempotent re-runs)')
+param skipRoleAssignments bool = false
+
 resource aiAccount 'Microsoft.CognitiveServices/accounts@2025-04-01-preview' existing = if (!empty(aiServicesAccountName) && !empty(aiProjectName)) {
   name: aiServicesAccountName
 
@@ -39,7 +45,7 @@ module containerRegistry 'br/public:avm/res/container-registry/registry:0.1.1' =
     location: location
     tags: tags
     publicNetworkAccess: 'Enabled'
-    roleAssignments:[
+    roleAssignments: skipRoleAssignments ? [] : [
       {
         principalId: principalId
         principalType: principalType
@@ -73,6 +79,7 @@ module acrConnection '../ai/connection.bicep' = if (!empty(aiServicesAccountName
         ResourceId: containerRegistry.outputs.resourceId
       }
     }
+    skipCreation: skipConnectionCreation
   }
 }
 

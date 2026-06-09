@@ -27,23 +27,28 @@ def get_client() -> AIProjectClient:
     )
 
 
-def build_image(registry: str, image_name: str, context_path: Path) -> str:
+def build_image(
+    registry: str,
+    image_name: str,
+    context_path: Path,
+    dockerfile: str | None = None,
+) -> str:
     registry_name = registry.removesuffix(".azurecr.io")
     build_tag = datetime.now().strftime("%Y%m%d%H%M%S")
     image_tag = f"{registry}/{image_name}:{build_tag}"
-    subprocess.run(
-        [
-            "az",
-            "acr",
-            "build",
-            "--registry",
-            registry_name,
-            "--image",
-            image_tag,
-            "--platform",
-            "linux/amd64",
-            str(context_path),
-        ],
-        check=True,
-    )
+    cmd = [
+        "az",
+        "acr",
+        "build",
+        "--registry",
+        registry_name,
+        "--image",
+        image_tag,
+        "--platform",
+        "linux/amd64",
+    ]
+    if dockerfile:
+        cmd += ["--file", dockerfile]
+    cmd.append(str(context_path))
+    subprocess.run(cmd, check=True)
     return image_tag

@@ -11,8 +11,14 @@
       "location": {
         "value": "${AZURE_LOCATION}"
       },
-      "searchIndexName": {
-        "value": "${AZURE_SEARCH_INDEX_NAME=offers-index}"
+      "supplierIndexName": {
+        "value": "${AZURE_SEARCH_SUPPLIER_INDEX_NAME=retail-suppliers}"
+      },
+      "categoryIndexName": {
+        "value": "${AZURE_SEARCH_CATEGORY_INDEX_NAME=retail-categories}"
+      },
+      "itemIndexName": {
+        "value": "${AZURE_SEARCH_ITEM_INDEX_NAME=retail-items}"
       },
       "chatModelDeploymentName": {
         "value": "${AZURE_AI_MODEL_DEPLOYMENT_NAME=gpt-4.1-mini}"
@@ -43,6 +49,12 @@
       },
       "enableMonitoring": {
         "value": "${ENABLE_MONITORING=true}"
+      },
+      "skipConnectionCreation": {
+        "value": "${SKIP_CONNECTION_CREATION=false}"
+      },
+      "skipRoleAssignments": {
+        "value": "${SKIP_ROLE_ASSIGNMENTS=false}"
       },
       "enableHostedAgents": {
         "value": "${ENABLE_HOSTED_AGENTS=true}"

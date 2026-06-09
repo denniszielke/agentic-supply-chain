@@ -27,6 +27,12 @@ param connectionName string = 'azure-ai-search-connection'
 @description('Location for all resources')
 param location string = resourceGroup().location
 
+@description('Set to true to skip creating the connection if it already exists (idempotent re-runs)')
+param skipConnectionCreation bool = false
+
+@description('Set to true to skip creating role assignments that already exist (idempotent re-runs)')
+param skipRoleAssignments bool = false
+
 resource aiAccount 'Microsoft.CognitiveServices/accounts@2025-04-01-preview' existing = if (!empty(aiServicesAccountName) && !empty(aiProjectName)) {
   name: aiServicesAccountName
 
@@ -62,8 +68,8 @@ resource searchService 'Microsoft.Search/searchServices@2024-06-01-preview' = {
   }
 }
 
-resource searchToAIServicesRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!empty(aiServicesAccountName)) {
-  name: guid(aiServicesAccountName, searchService.id, 'Cognitive Services OpenAI User', uniqueString(deployment().name))
+resource searchToAIServicesRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!empty(aiServicesAccountName) && !skipRoleAssignments) {
+  name: guid(aiServicesAccountName, searchService.id, 'Cognitive Services OpenAI User')
   properties: {
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '5e0bd9bd-7b93-4f28-af87-19fc36ad61bd')
     principalId: searchService.identity.principalId
@@ -71,8 +77,8 @@ resource searchToAIServicesRoleAssignment 'Microsoft.Authorization/roleAssignmen
   }
 }
 
-resource aiServicesToSearchServiceRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!empty(aiServicesAccountName) && !empty(aiProjectName)) {
-  name: guid(searchService.id, aiServicesAccountName, aiProjectName, 'Search Service Contributor', uniqueString(deployment().name))
+resource aiServicesToSearchServiceRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!empty(aiServicesAccountName) && !empty(aiProjectName) && !skipRoleAssignments) {
+  name: guid(searchService.id, aiServicesAccountName, aiProjectName, 'Search Service Contributor')
   scope: searchService
   properties: {
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7ca78c08-252a-4471-8644-bb5ff32d4ba0')
@@ -81,8 +87,8 @@ resource aiServicesToSearchServiceRoleAssignment 'Microsoft.Authorization/roleAs
   }
 }
 
-resource aiServicesToSearchDataRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!empty(aiServicesAccountName) && !empty(aiProjectName)) {
-  name: guid(searchService.id, aiServicesAccountName, aiProjectName, 'Search Index Data Contributor', uniqueString(deployment().name))
+resource aiServicesToSearchDataRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!empty(aiServicesAccountName) && !empty(aiProjectName) && !skipRoleAssignments) {
+  name: guid(searchService.id, aiServicesAccountName, aiProjectName, 'Search Index Data Contributor')
   scope: searchService
   properties: {
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '8ebe5a00-799e-43f5-93ac-243d3dce84a7')
@@ -91,8 +97,8 @@ resource aiServicesToSearchDataRoleAssignment 'Microsoft.Authorization/roleAssig
   }
 }
 
-resource userToSearchRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(searchService.id, principalId, 'Search Index Data Contributor', uniqueString(deployment().name))
+resource userToSearchRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!skipRoleAssignments) {
+  name: guid(searchService.id, principalId, 'Search Index Data Contributor')
   scope: searchService
   properties: {
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '8ebe5a00-799e-43f5-93ac-243d3dce84a7')
@@ -119,6 +125,7 @@ module aiSearchConnection '../ai/connection.bicep' = if (!empty(aiServicesAccoun
         type: 'azure_ai_search'
       }
     }
+    skipCreation: skipConnectionCreation
   }
   dependsOn: [
     aiServicesToSearchDataRoleAssignment
