@@ -192,7 +192,7 @@ If `AZURE_AI_PROJECT_ENDPOINT` and `AZURE_CONTAINER_REGISTRY_ENDPOINT` are also 
 
 ### 2c. Ingest a promotional flyer
 
-Runs the vision-model extraction pipeline against one or more PDF/image sources and writes the result to a JSON file:
+Runs the vision-model extraction pipeline against one or more PDF/image sources. By default the result is written to a JSON file:
 
 ```bash
 python -m src.promotion_ingestion.processor \
@@ -202,15 +202,31 @@ python -m src.promotion_ingestion.processor \
     --output data/extraction-result.json
 ```
 
+To push extracted entities directly to Azure AI Search (requires `AZURE_SEARCH_ENDPOINT` to be set):
+
+```bash
+python -m src.promotion_ingestion.processor \
+    --supplier-id <supplier-id> \
+    --source https://example.com/weekly-flyer.pdf \
+    --push-to-search
+```
+
+Both flags can be combined to write JSON **and** index simultaneously.
+
 Key env vars for this step:
 
 | Variable | Description |
 |---|---|
-| `AZURE_OPENAI_ENDPOINT` | Azure OpenAI endpoint |
+| `AZURE_AI_PROJECT_ENDPOINT` | Azure AI Foundry project endpoint (required) |
 | `AZURE_OPENAI_CHAT_DEPLOYMENT_NAME` | Vision model deployment (default: `gpt-4o`) |
 | `PROCESSING_WORK_DIR` | Where page images are stored (default: `/tmp/agentic-supply-chain`) |
 | `PROCESSING_BATCH_SIZE` | Images per batch (default: `8`) |
 | `PROCESSING_OVERLAP` | Sliding-window overlap (default: `2`) |
+| `AZURE_SEARCH_ENDPOINT` | AI Search endpoint — required for `--push-to-search` |
+| `AZURE_SEARCH_SUPPLIER_INDEX_NAME` | Supplier index name (default: `retail-suppliers`) |
+| `AZURE_SEARCH_CATEGORY_INDEX_NAME` | Category index name (default: `retail-categories`) |
+| `AZURE_SEARCH_ITEM_INDEX_NAME` | Item index name (default: `retail-items`) |
+| `AZURE_OPENAI_EMBEDDING_DEPLOYMENT_NAME` | Embedding model for vectors — optional for `--push-to-search` |
 
 ---
 

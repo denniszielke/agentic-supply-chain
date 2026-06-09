@@ -8,15 +8,24 @@ Pipeline
 3. Run a sliding-window batch loop over the collected images, calling an Azure
    OpenAI vision model to incrementally extract supplier, category, and item
    data.
-4. Persist the consolidated result as a JSON file.
+4. Persist the consolidated result as a JSON file and/or push it to Azure AI
+   Search indexes.
 
 Environment variables
 ---------------------
-PROCESSING_WORK_DIR              Root directory for image artefacts (default: /tmp/agentic-supply-chain)
+PROCESSING_WORK_DIR              Root directory for image artefacts (default: tempfiles, relative to cwd; set to an absolute path to override)
 PROCESSING_BATCH_SIZE            Images per sliding-window batch (default: 8)
 PROCESSING_OVERLAP               Overlapping images between consecutive batches (default: 2)
 AZURE_AI_PROJECT_ENDPOINT        Azure AI Foundry project endpoint URL (required)
-AZURE_OPENAI_CHAT_DEPLOYMENT_NAME  Model deployment name (default: gpt-4o)
+AZURE_OPENAI_CHAT_DEPLOYMENT_NAME  Vision model deployment name (default: gpt-5.4-mini)
+
+Search indexing (required when --push-to-search is used)
+AZURE_SEARCH_ENDPOINT            Azure AI Search service endpoint
+AZURE_SEARCH_ADMIN_KEY           Admin API key (optional; falls back to DefaultAzureCredential)
+AZURE_SEARCH_SUPPLIER_INDEX_NAME Supplier index name (default: retail-suppliers)
+AZURE_SEARCH_CATEGORY_INDEX_NAME Category index name (default: retail-categories)
+AZURE_SEARCH_ITEM_INDEX_NAME     Item index name (default: retail-items)
+AZURE_OPENAI_EMBEDDING_DEPLOYMENT_NAME  Embedding model for category/item vectors (optional; skips vectors if unset)
 """
 
 from __future__ import annotations
@@ -33,9 +42,11 @@ from typing import Iterable, List, Optional
 from urllib.parse import urlparse
 
 import requests
-from azure.ai.projects import AIProjectClient
-from azure.identity import DefaultAzureCredential
+from azure.core.credentials import AzureKeyCredential
+from azure.identity import DefaultAzureCredential, get_bearer_token_provider
+from azure.search.documents import SearchClient
 from dotenv import load_dotenv
+from openai import AzureOpenAI
 from pydantic import BaseModel, Field
 
 from src.shared.models import (
@@ -62,10 +73,10 @@ logger = logging.getLogger(__name__)
 # Configuration defaults
 # ---------------------------------------------------------------------------
 
-_DEFAULT_WORK_DIR = "/tmp/agentic-supply-chain"
+_DEFAULT_WORK_DIR = "data/tempfiles"
 _DEFAULT_BATCH_SIZE = 8
 _DEFAULT_OVERLAP = 2
-_DEFAULT_MODEL = "gpt-4o"
+_DEFAULT_MODEL = "gpt-5.4-mini"
 
 # ---------------------------------------------------------------------------
 # Job data models
@@ -150,6 +161,160 @@ INSTRUCTIONS FOR THIS BATCH:
 
 
 # ---------------------------------------------------------------------------
+# OpenAI client factory
+# ---------------------------------------------------------------------------
+
+
+def _create_openai_client() -> AzureOpenAI:
+    """Return an Azure OpenAI client.
+
+    Priority:
+    1. ``AZURE_AI_PROJECT_ENDPOINT`` — derives the Azure AI account root URL and
+       uses the ``https://ai.azure.com/.default`` token scope.
+    2. ``AZURE_OPENAI_ENDPOINT`` — uses the direct Azure OpenAI endpoint with
+       the ``https://cognitiveservices.azure.com/.default`` scope.
+    ``AZURE_OPENAI_API_KEY`` is used instead of DefaultAzureCredential when set.
+    """
+    api_key = os.getenv("AZURE_OPENAI_API_KEY", "").strip() or None
+    api_version = os.getenv("OPENAI_API_VERSION", "2025-01-01-preview")
+
+    project_endpoint = os.getenv("AZURE_AI_PROJECT_ENDPOINT", "").strip()
+    if project_endpoint:
+        # Derive account root (scheme + host) from the project endpoint so that
+        # AzureOpenAI can construct the standard /openai/ base URL correctly.
+        # e.g. https://ai-account-xxx.services.ai.azure.com/api/projects/name
+        #   -> https://ai-account-xxx.services.ai.azure.com
+        parsed = urlparse(project_endpoint)
+        account_root = f"{parsed.scheme}://{parsed.netloc}"
+        if api_key:
+            return AzureOpenAI(
+                azure_endpoint=account_root, api_key=api_key, api_version=api_version
+            )
+        token_provider = get_bearer_token_provider(
+            DefaultAzureCredential(), "https://ai.azure.com/.default"
+        )
+        return AzureOpenAI(
+            azure_endpoint=account_root,
+            azure_ad_token_provider=token_provider,
+            api_version=api_version,
+        )
+
+    direct_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT", "").strip()
+    if direct_endpoint:
+        if api_key:
+            return AzureOpenAI(
+                azure_endpoint=direct_endpoint, api_key=api_key, api_version=api_version
+            )
+        token_provider = get_bearer_token_provider(
+            DefaultAzureCredential(), "https://cognitiveservices.azure.com/.default"
+        )
+        return AzureOpenAI(
+            azure_endpoint=direct_endpoint,
+            azure_ad_token_provider=token_provider,
+            api_version=api_version,
+        )
+
+    raise RuntimeError(
+        "No Azure OpenAI endpoint configured. "
+        "Set AZURE_AI_PROJECT_ENDPOINT or AZURE_OPENAI_ENDPOINT."
+    )
+
+
+# ---------------------------------------------------------------------------
+# Search index pusher
+# ---------------------------------------------------------------------------
+
+_EMBEDDING_BATCH_SIZE = 256  # Azure OpenAI embeddings API limit per request
+
+
+class SearchIndexPusher:
+    """Pushes an ExtractionResult to the three Azure AI Search indexes."""
+
+    def __init__(self) -> None:
+        endpoint = os.getenv("AZURE_SEARCH_ENDPOINT")
+        if not endpoint:
+            raise RuntimeError("AZURE_SEARCH_ENDPOINT is required for --push-to-search")
+
+        api_key = os.getenv("AZURE_SEARCH_ADMIN_KEY", "").strip()
+        credential: AzureKeyCredential | DefaultAzureCredential = (
+            AzureKeyCredential(api_key) if api_key else DefaultAzureCredential()
+        )
+
+        supplier_index = os.getenv("AZURE_SEARCH_SUPPLIER_INDEX_NAME", "retail-suppliers")
+        category_index = os.getenv("AZURE_SEARCH_CATEGORY_INDEX_NAME", "retail-categories")
+        item_index = os.getenv("AZURE_SEARCH_ITEM_INDEX_NAME", "retail-items")
+
+        self._supplier_client = SearchClient(endpoint, supplier_index, credential)
+        self._category_client = SearchClient(endpoint, category_index, credential)
+        self._item_client = SearchClient(endpoint, item_index, credential)
+        self._embedding_model = os.getenv("AZURE_OPENAI_EMBEDDING_DEPLOYMENT_NAME", "").strip()
+        self._openai_client = None
+
+    # ------------------------------------------------------------------
+    # Public API
+    # ------------------------------------------------------------------
+
+    def push(self, result: ExtractionResult) -> None:
+        """Upload all entities in *result* to their respective search indexes."""
+        if result.supplier:
+            doc = result.supplier.model_dump(mode="json")
+            self._supplier_client.merge_or_upload_documents([doc])
+            logger.info("Indexed supplier '%s'.", result.supplier.supplier_id)
+
+        if result.categories:
+            embeddings = self._embed([c.description_text or c.name for c in result.categories])
+            cat_docs = []
+            for i, cat in enumerate(result.categories):
+                doc = cat.model_dump(mode="json")
+                if embeddings:
+                    doc["embedding"] = embeddings[i]
+                cat_docs.append(doc)
+            self._category_client.merge_or_upload_documents(cat_docs)
+            logger.info("Indexed %d categories.", len(cat_docs))
+
+        if result.items:
+            embeddings = self._embed([it.description_text or it.name for it in result.items])
+            item_docs = []
+            for i, item in enumerate(result.items):
+                doc = item.model_dump(mode="json")
+                if embeddings:
+                    doc["embedding"] = embeddings[i]
+                item_docs.append(doc)
+            self._item_client.merge_or_upload_documents(item_docs)
+            logger.info("Indexed %d items.", len(item_docs))
+
+        print(
+            f"Indexed to AI Search: 1 supplier, {len(result.categories)} categories, "
+            f"{len(result.items)} items."
+        )
+
+    # ------------------------------------------------------------------
+    # Embedding helpers
+    # ------------------------------------------------------------------
+
+    def _get_openai_client(self):
+        if self._openai_client is None:
+            self._openai_client = _create_openai_client()
+        return self._openai_client
+
+    def _embed(self, texts: list[str]) -> list[list[float]] | None:
+        """Generate embeddings in batches; returns None if no model is configured."""
+        if not self._embedding_model or not texts:
+            return None
+        try:
+            client = self._get_openai_client()
+            results: list[list[float]] = []
+            for start in range(0, len(texts), _EMBEDDING_BATCH_SIZE):
+                batch = texts[start: start + _EMBEDDING_BATCH_SIZE]
+                resp = client.embeddings.create(model=self._embedding_model, input=batch)
+                results.extend(item.embedding for item in resp.data)
+            return results
+        except Exception as exc:
+            logger.warning("Embedding generation failed, skipping vectors: %s", exc)
+            return None
+
+
+# ---------------------------------------------------------------------------
 # Processor
 # ---------------------------------------------------------------------------
 
@@ -173,7 +338,7 @@ class FlyerProcessor:
     # Public API
     # ------------------------------------------------------------------
 
-    def process(self, job: JobInput) -> ExtractionResult:
+    def process(self, job: JobInput, push_to_search: bool = False, output_path: str | None = "data/extraction-result.json") -> ExtractionResult:
         """Run the full extraction pipeline for *job* and return the result."""
         session_dir = self.work_dir / job.supplier_id
         session_dir.mkdir(parents=True, exist_ok=True)
@@ -198,20 +363,19 @@ class FlyerProcessor:
         # 2. Run sliding-window extraction
         result = self._extract_from_batches(image_files, job)
 
-        # 3. Persist
-        output_path = Path(job.output_path)
-        self._persist(result, output_path)
         logger.info(
-            "Extraction complete: supplier=%s, categories=%d, items=%d → %s",
+            "Extraction complete: supplier=%s, categories=%d, items=%d",
             result.supplier.supplier_id if result.supplier else "None",
             len(result.categories),
             len(result.items),
-            output_path,
         )
         print(
             f"Extraction complete: 1 supplier, {len(result.categories)} categories, "
-            f"{len(result.items)} items → {output_path}"
+            f"{len(result.items)} items."
         )
+
+        # 3. Output
+        self._finalise(result, push_to_search, output_path)
         return result
 
     # ------------------------------------------------------------------
@@ -464,6 +628,20 @@ class FlyerProcessor:
     # Persistence
     # ------------------------------------------------------------------
 
+    def _finalise(
+        self,
+        result: ExtractionResult,
+        push_to_search: bool,
+        output_path: str | None,
+    ) -> None:
+        """Write JSON and/or push to Azure AI Search based on active flags."""
+        if output_path:
+            self._persist(result, Path(output_path))
+        if push_to_search:
+            SearchIndexPusher().push(result)
+        if not output_path and not push_to_search:
+            logger.warning("No output target configured — result discarded.")
+
     @staticmethod
     def _persist(result: ExtractionResult, output_path: Path) -> None:
         output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -479,12 +657,7 @@ class FlyerProcessor:
     # ------------------------------------------------------------------
 
     def _build_client(self):
-        endpoint = os.environ["AZURE_AI_PROJECT_ENDPOINT"]
-        project_client = AIProjectClient(
-            endpoint=endpoint,
-            credential=DefaultAzureCredential(),
-        )
-        return project_client.get_openai_client()
+        return _create_openai_client()
 
 
 # ---------------------------------------------------------------------------
@@ -509,14 +682,32 @@ def main() -> None:
     )
     parser.add_argument(
         "--output",
-        default="data/extraction-result.json",
-        help="Output JSON file path (default: data/extraction-result.json).",
+        default=None,
+        help=(
+            "Output JSON file path. Defaults to 'data/extraction-result.json' when "
+            "--push-to-search is not set. Pass an explicit path to always write JSON "
+            "regardless of other flags."
+        ),
+    )
+    parser.add_argument(
+        "--push-to-search",
+        action="store_true",
+        default=False,
+        help=(
+            "Push extracted entities directly to Azure AI Search indexes "
+            "(requires AZURE_SEARCH_ENDPOINT and related env vars)."
+        ),
     )
     args = parser.parse_args()
 
-    job = JobInput(supplier_id=args.supplier_id, sources=args.sources, output_path=args.output)
+    # Default to JSON output when push-to-search is not requested
+    output_path: str | None = args.output
+    if output_path is None and not args.push_to_search:
+        output_path = "data/extraction-result.json"
+
+    job = JobInput(supplier_id=args.supplier_id, sources=args.sources, output_path=output_path or "")
     processor = FlyerProcessor()
-    processor.process(job)
+    processor.process(job, push_to_search=args.push_to_search, output_path=output_path)
 
 
 if __name__ == "__main__":
