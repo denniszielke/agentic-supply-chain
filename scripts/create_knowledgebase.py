@@ -94,15 +94,6 @@ def _upsert_knowledge_base(
             "Covers retail suppliers (store locations and opening hours), product categories "
             "(semantic groupings), and promotional offers (prices and discounts)."
         ),
-        retrieval_instructions=(
-            "Use the suppliers knowledge source for queries about store locations, opening "
-            "hours, brands, or regional availability. "
-            "Use the categories knowledge source for queries about product types or semantic "
-            "groupings. "
-            "Use the items knowledge source for queries about specific products, prices, "
-            "promotions, or discounts."
-        ),
-        output_mode="extractedData",
         knowledge_sources=[KnowledgeSourceReference(name=n) for n in knowledge_source_names],
         models=[KnowledgeBaseAzureOpenAIModel(azure_open_ai_parameters=aoai_params)],
     )

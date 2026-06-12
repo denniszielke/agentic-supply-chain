@@ -121,10 +121,6 @@
           "required": true,
           "description": "Human-readable category name in the flyer language, e.g. 'Molkereiprodukte', 'Obst & Gemüse'."
         },
-        "parent_category_id": {
-          "type": "string",
-          "description": "category_id of the parent category if this is a subcategory, e.g. 'beverages-alcoholic' → parent 'beverages'."
-        },
         "description_text": {
           "type": "string",
           "required": true,
@@ -173,6 +169,14 @@
           "type": "string",
           "required": true,
           "description": "Must match a Category.category_id present in the 'categories' array."
+        },
+        "source_ref": {
+          "type": "string",
+          "description": "Source document reference (e.g. 'flyer.pdf p.3'). Set automatically by the processor; do not include in LLM output."
+        },
+        "offer_validity": {
+          "$ref": "OfferValidity",
+          "description": "Validity window for this specific item's promotional price. Defaults to the document-level validity from the supplier; override only when the flyer shows a narrower window for this item."
         },
         "attributes": {
           "$ref": "Attributes",
@@ -247,7 +251,6 @@
   },
   "relationships": [
     { "from": "Item", "field": "supplier_id", "to": "Supplier", "via": "supplier_id" },
-    { "from": "Item", "field": "category_id", "to": "Category", "via": "category_id" },
-    { "from": "Category", "field": "parent_category_id", "to": "Category", "via": "category_id" }
+    { "from": "Item", "field": "category_id", "to": "Category", "via": "category_id" }
   ]
 }

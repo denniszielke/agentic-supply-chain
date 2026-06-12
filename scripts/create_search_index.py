@@ -12,6 +12,10 @@ from azure.search.documents.indexes.models import (
     SearchField,
     SearchFieldDataType,
     SearchIndex,
+    SemanticConfiguration,
+    SemanticField,
+    SemanticPrioritizedFields,
+    SemanticSearch,
     VectorSearch,
     VectorSearchProfile,
 )
@@ -37,6 +41,27 @@ def _hnsw_vector_search() -> VectorSearch:
     return VectorSearch(
         profiles=[VectorSearchProfile(name="hnsw", algorithm_configuration_name="hnsw")],
         algorithms=[HnswAlgorithmConfiguration(name="hnsw")],
+    )
+
+
+def _semantic_search(
+    config_name: str,
+    title_field: str | None,
+    content_fields: list[str],
+    keyword_fields: list[str],
+) -> SemanticSearch:
+    return SemanticSearch(
+        default_configuration_name=config_name,
+        configurations=[
+            SemanticConfiguration(
+                name=config_name,
+                prioritized_fields=SemanticPrioritizedFields(
+                    title_field=SemanticField(field_name=title_field) if title_field else None,
+                    content_fields=[SemanticField(field_name=f) for f in content_fields],
+                    keywords_fields=[SemanticField(field_name=f) for f in keyword_fields],
+                ),
+            )
+        ],
     )
 
 
@@ -86,20 +111,6 @@ def _build_supplier_fields() -> list:
                 SearchField(name="website", type=SearchFieldDataType.String, searchable=True),
             ],
         ),
-        ComplexField(
-            name="offer_validity",
-            fields=[
-                SearchField(name="start_date", type=SearchFieldDataType.DateTimeOffset, filterable=True, sortable=True),
-                SearchField(name="end_date", type=SearchFieldDataType.DateTimeOffset, filterable=True, sortable=True),
-            ],
-        ),
-        ComplexField(
-            name="ingestion_metadata",
-            fields=[
-                SearchField(name="source_document", type=SearchFieldDataType.String, searchable=True),
-                SearchField(name="ingestion_timestamp", type=SearchFieldDataType.DateTimeOffset, filterable=True, sortable=True),
-            ],
-        ),
     ]
 
 
@@ -108,14 +119,13 @@ def _build_supplier_fields() -> list:
 def _build_category_fields() -> list:
     """Fields for the category index.
 
-    Represents a normalized semantic grouping of items, independent of flyer
-    layouts, enabling cross-retailer queries.
+    Flat category representation. Hierarchy is captured via embeddings rather
+    than explicit parent references, enabling cross-retailer semantic comparison.
     """
     return [
         SearchField(name="id", type=SearchFieldDataType.String, key=True),
         SearchField(name="category_id", type=SearchFieldDataType.String, filterable=True),
         SearchField(name="name", type=SearchFieldDataType.String, searchable=True, filterable=True),
-        SearchField(name="parent_category_id", type=SearchFieldDataType.String, filterable=True),
         SearchField(name="description_text", type=SearchFieldDataType.String, searchable=True),
         SearchField(
             name="semantic_tags",
@@ -150,6 +160,7 @@ def _build_item_fields() -> list:
         SearchField(name="brand", type=SearchFieldDataType.String, searchable=True, filterable=True, facetable=True),
         SearchField(name="description_text", type=SearchFieldDataType.String, searchable=True),
         SearchField(name="category_id", type=SearchFieldDataType.String, filterable=True),
+        SearchField(name="source_ref", type=SearchFieldDataType.String, searchable=True, filterable=True),
         ComplexField(
             name="attributes",
             fields=[
@@ -193,6 +204,13 @@ def _build_item_fields() -> list:
                 SearchField(name="availability", type=SearchFieldDataType.String, searchable=True, filterable=True),
             ],
         ),
+        ComplexField(
+            name="offer_validity",
+            fields=[
+                SearchField(name="start_date", type=SearchFieldDataType.DateTimeOffset, filterable=True, sortable=True, retrievable=True),
+                SearchField(name="end_date", type=SearchFieldDataType.DateTimeOffset, filterable=True, sortable=True, retrievable=True),
+            ],
+        ),
         SearchField(
             name="embedding",
             type=SearchFieldDataType.Collection(SearchFieldDataType.Single),
@@ -204,8 +222,16 @@ def _build_item_fields() -> list:
 
 # ── Index management ──────────────────────────────────────────────────────────
 
-def _upsert_index(index_client: SearchIndexClient, name: str, fields: list, with_vector_search: bool = False) -> None:
+def _upsert_index(
+    index_client: SearchIndexClient,
+    name: str,
+    fields: list,
+    with_vector_search: bool = False,
+    semantic_search: SemanticSearch | None = None,
+) -> None:
     kwargs = {"vector_search": _hnsw_vector_search()} if with_vector_search else {}
+    if semantic_search is not None:
+        kwargs["semantic_search"] = semantic_search
     index = SearchIndex(name=name, fields=fields, **kwargs)
     result = index_client.create_or_update_index(index)
     logger.info("Index '%s' created/updated.", result.name)
@@ -222,9 +248,42 @@ def create_or_update_indexes(
     item_index_name = item_index_name or os.getenv("AZURE_SEARCH_ITEM_INDEX_NAME", "retail-items")
 
     index_client = _get_index_client()
-    _upsert_index(index_client, supplier_index_name, _build_supplier_fields(), with_vector_search=False)
-    _upsert_index(index_client, category_index_name, _build_category_fields(), with_vector_search=True)
-    _upsert_index(index_client, item_index_name, _build_item_fields(), with_vector_search=True)
+    _upsert_index(
+        index_client,
+        supplier_index_name,
+        _build_supplier_fields(),
+        with_vector_search=False,
+        semantic_search=_semantic_search(
+            config_name="supplier-semantic",
+            title_field="store_name",
+            content_fields=["region"],
+            keyword_fields=["brand"],
+        ),
+    )
+    _upsert_index(
+        index_client,
+        category_index_name,
+        _build_category_fields(),
+        with_vector_search=True,
+        semantic_search=_semantic_search(
+            config_name="category-semantic",
+            title_field="name",
+            content_fields=["description_text"],
+            keyword_fields=["semantic_tags"],
+        ),
+    )
+    _upsert_index(
+        index_client,
+        item_index_name,
+        _build_item_fields(),
+        with_vector_search=True,
+        semantic_search=_semantic_search(
+            config_name="item-semantic",
+            title_field="name",
+            content_fields=["description_text"],
+            keyword_fields=["brand"],
+        ),
+    )
 
 
 def main() -> None:

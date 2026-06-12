@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import List
 
@@ -11,8 +10,6 @@ from pydantic import BaseModel
 from src.shopping_chat.catalog import CatalogService
 from src.shared.models import (
     Address,
-    IngestionMetadata,
-    OfferValidity,
     Supplier,
 )
 from src.shared.seed_data import seed_items
@@ -21,8 +18,6 @@ app = FastAPI(title="agentic-supply-chain MCP app")
 
 
 def _seed_suppliers() -> List[Supplier]:
-    start = date.today()
-    end = start + timedelta(days=6)
     return [
         Supplier(
             supplier_id="rewe-berlin-week-24",
@@ -35,11 +30,6 @@ def _seed_suppliers() -> List[Supplier]:
                 country="DE",
             ),
             region="Berlin",
-            offer_validity=OfferValidity(start_date=start, end_date=end),
-            ingestion_metadata=IngestionMetadata(
-                source_document="seed",
-                ingestion_timestamp=datetime.now(timezone.utc),
-            ),
         ),
         Supplier(
             supplier_id="aldi-berlin-week-24",
@@ -52,11 +42,6 @@ def _seed_suppliers() -> List[Supplier]:
                 country="DE",
             ),
             region="Berlin",
-            offer_validity=OfferValidity(start_date=start, end_date=end),
-            ingestion_metadata=IngestionMetadata(
-                source_document="seed",
-                ingestion_timestamp=datetime.now(timezone.utc),
-            ),
         ),
     ]
 
