@@ -56,16 +56,66 @@ agentic-supply-chain/
 │   └── shopping_agent/           # A2A planning agent  →  see src/shopping_agent/README.md
 ├── scripts/
 │   ├── build_containers.sh       # Build all images via az acr build
-│   ├── create_search_index.py    # Create / update Azure AI Search indexes
-│   ├── create_knowledgebase.py   # Create / update AI Search knowledge sources and knowledge base
+│   ├── create_search_index.py    # Create / update the three Azure AI Search indexes
+│   ├── create_knowledgebase.py   # Create / update AI Search knowledge sources + knowledge base
+│   ├── create_category_items.py  # Seed the category index with a canonical taxonomy
+│   ├── map_items_to_category.py  # Assign uncategorized items to categories via vector search
+│   ├── ingest_all.py             # Bulk-ingest every PDF in data/files/ into AI Search
 │   ├── deploy_assets.py          # Runs create_search_index + create_knowledgebase (postprovision hook)
-│   ├── delete_index.py           # Delete Azure AI Search indexes
 │   ├── deploy_agents.py          # Deploy Container Apps via app.bicep
-│   └── delete_agents.py          # Delete all Container Apps
+│   ├── deploy_hosted_agents.py   # Deploy the shopping agent as a Foundry hosted agent
+│   ├── deploy_helpers.py         # Shared image-build / Foundry client helpers
+│   ├── delete_index.py           # Delete an Azure AI Search index (schema + data)
+│   ├── delete_index_data.py      # Delete all documents but keep index schemas
+│   ├── delete_agents.py          # Delete all Container Apps
+│   └── create_index.py           # Legacy single-index creator (infra/search-schema.json)
 └── tests/
     ├── test_catalog.py
-    └── test_planner.py
+    ├── test_completion.py
+    ├── test_planner.py
+    └── test_responses.py
 ```
+
+---
+
+## Scripts reference
+
+All scripts read configuration from `./.env` (written by `azd up`). Run them from the repo root.
+
+### Search index & knowledge base
+
+| Script | Purpose |
+|---|---|
+| `scripts/create_search_index.py` | Create / update the three indexes (`retail-suppliers`, `retail-categories`, `retail-items`) with vector + semantic config |
+| `scripts/create_knowledgebase.py` | Create knowledge sources (one per index) and assemble the `supply-chain-kb` knowledge base for agentic retrieval |
+| `scripts/deploy_assets.py` | Convenience wrapper: runs `create_search_index` then `create_knowledgebase` (used by the `postprovision` hook) |
+| `scripts/create_category_items.py` | Seed the category index with a canonical, retailer-agnostic taxonomy (embeds each category). `--dry-run` to preview |
+| `scripts/map_items_to_category.py` | Map `uncategorized` items to the best category via vector search. `--dry-run`, `--threshold`, `--batch-size` |
+| `scripts/create_index.py` | Legacy single-index creator from `infra/search-schema.json` |
+
+### Ingestion
+
+| Script | Purpose |
+|---|---|
+| `scripts/ingest_all.py` | Ingest every PDF in `data/files/`, deriving supplier IDs from filenames. `--files-dir`, `--output-dir`, `--dry-run` |
+| `python -m src.promotion_ingestion.processor` | Ingest one or more sources for a single supplier (see Step 2c) |
+
+### Deployment
+
+| Script | Purpose |
+|---|---|
+| `scripts/build_containers.sh <AZURE_ENV_NAME> [TAG]` | Build all service images in ACR (no local Docker) |
+| `scripts/deploy_agents.py` | Deploy `shopping-chat`, `promotion-ingestion`, `shopping-agent` as Container Apps; optionally a hosted agent |
+| `scripts/deploy_hosted_agents.py` | Deploy the shopping agent as a Foundry hosted agent |
+| `scripts/deploy_helpers.py` | Shared helpers for image builds and the Foundry client (imported, not run directly) |
+
+### Cleanup
+
+| Script | Purpose |
+|---|---|
+| `scripts/delete_index_data.py` | Delete all documents from the three indexes; schemas remain |
+| `scripts/delete_index.py` | Delete an index entirely (schema + data) |
+| `scripts/delete_agents.py` | Delete all three Container Apps |
 
 ---
 
@@ -213,6 +263,13 @@ python -m src.promotion_ingestion.processor \
 
 Both flags can be combined to write JSON **and** index simultaneously.
 
+To ingest every PDF placed in `data/files/` in one pass (supplier IDs are derived from filenames):
+
+```bash
+python scripts/ingest_all.py            # ingest + push to search
+python scripts/ingest_all.py --dry-run  # show what would be ingested
+```
+
 Key env vars for this step:
 
 | Variable | Description |
@@ -240,17 +297,27 @@ uvicorn src.shopping_chat.app:app --reload --port 8080
 
 Open http://localhost:8080
 
-**Shopping planner agent (A2A):**
+**Shopping planner agent (CLI):**
 
 ```bash
-uvicorn src.shopping_agent.a2a_api:app --reload --port 8090
+# Single non-interactive query
+python -m src.shopping_agent.shopping_agent --query "Ich brauche Milch, Hackfleisch und Tomaten."
+
+# Interactive REPL (omit --query)
+python -m src.shopping_agent.shopping_agent
 ```
 
 ---
 
 ## Cleanup
 
-Delete search index:
+Delete search index documents (keep schemas):
+
+```bash
+python scripts/delete_index_data.py
+```
+
+Delete a search index entirely:
 
 ```bash
 python scripts/delete_index.py

@@ -21,7 +21,7 @@ class CatalogService:
 
     def recommend_by_category(self, category_id: str, limit: int = 5) -> List[Item]:
         results = [item for item in self._items if item.category_id == category_id]
-        return sorted(results, key=lambda item: item.pricing.current_price)[:limit]
+        return sorted(results, key=lambda item: item.pricing_current_price)[:limit]
 
     def inventory_by_supplier(self, supplier_id: str) -> List[Item]:
         return [item for item in self._items if item.supplier_id == supplier_id]

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import List
 
-from src.shared.models import Item, Pricing
+from src.shared.models import Item
 
 
 def seed_items() -> List[Item]:
@@ -14,7 +14,9 @@ def seed_items() -> List[Item]:
             brand="REWE Bio",
             description_text="Frische Bio Avocado aus Spanien, Klasse I",
             category_id="vegetables",
-            pricing=Pricing(current_price=1.29, original_price=1.79, discount_percentage=27.9),
+            pricing_current_price=1.29,
+            pricing_original_price=1.79,
+            pricing_discount_percentage=27.9,
         ),
         Item(
             item_id="i-2",
@@ -23,7 +25,9 @@ def seed_items() -> List[Item]:
             brand="Milsani",
             description_text="1L Vollmilch, regional",
             category_id="dairy",
-            pricing=Pricing(current_price=0.95, original_price=1.09, discount_percentage=12.8),
+            pricing_current_price=0.95,
+            pricing_original_price=1.09,
+            pricing_discount_percentage=12.8,
         ),
         Item(
             item_id="i-3",
@@ -32,6 +36,8 @@ def seed_items() -> List[Item]:
             brand="Meine Metzgerei",
             description_text="Frisches Rinderhackfleisch 500g",
             category_id="meat",
-            pricing=Pricing(current_price=3.49, original_price=4.49, discount_percentage=22.3),
+            pricing_current_price=3.49,
+            pricing_original_price=4.49,
+            pricing_discount_percentage=22.3,
         ),
     ]

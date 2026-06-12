@@ -7,7 +7,6 @@ from azure.core.credentials import AzureKeyCredential
 from azure.identity import DefaultAzureCredential
 from azure.search.documents.indexes import SearchIndexClient
 from azure.search.documents.indexes.models import (
-    ComplexField,
     HnswAlgorithmConfiguration,
     SearchField,
     SearchFieldDataType,
@@ -71,46 +70,30 @@ def _build_supplier_fields() -> list:
     """Fields for the supplier index.
 
     Represents a single flyer context instance (store, region, validity window,
-    opening hours, contact, and ingestion metadata).
+    opening hours, contact, and ingestion metadata). All fields are flat scalars
+    or string collections — no composite (ComplexField) types — so the index can
+    be surfaced directly through the agentic-retrieval knowledge base.
     """
     return [
         SearchField(name="id", type=SearchFieldDataType.String, key=True),
         SearchField(name="supplier_id", type=SearchFieldDataType.String, filterable=True),
         SearchField(name="brand", type=SearchFieldDataType.String, searchable=True, filterable=True, facetable=True),
         SearchField(name="store_name", type=SearchFieldDataType.String, searchable=True, filterable=True),
-        ComplexField(
-            name="address",
-            fields=[
-                SearchField(name="street", type=SearchFieldDataType.String, searchable=True),
-                SearchField(name="city", type=SearchFieldDataType.String, searchable=True, filterable=True, facetable=True),
-                SearchField(name="postal_code", type=SearchFieldDataType.String, searchable=True, filterable=True),
-                SearchField(name="country", type=SearchFieldDataType.String, searchable=True, filterable=True, facetable=True),
-                ComplexField(
-                    name="geo",
-                    fields=[
-                        SearchField(name="lat", type=SearchFieldDataType.Double, filterable=True),
-                        SearchField(name="lon", type=SearchFieldDataType.Double, filterable=True),
-                    ],
-                ),
-            ],
-        ),
-        ComplexField(
-            name="opening_hours",
-            collection=True,
-            fields=[
-                SearchField(name="day", type=SearchFieldDataType.String, searchable=True, filterable=True),
-                SearchField(name="open", type=SearchFieldDataType.String),
-                SearchField(name="close", type=SearchFieldDataType.String),
-            ],
-        ),
         SearchField(name="region", type=SearchFieldDataType.String, searchable=True, filterable=True, facetable=True),
-        ComplexField(
-            name="contact",
-            fields=[
-                SearchField(name="phone", type=SearchFieldDataType.String, searchable=True),
-                SearchField(name="website", type=SearchFieldDataType.String, searchable=True),
-            ],
+        SearchField(name="address_street", type=SearchFieldDataType.String, searchable=True),
+        SearchField(name="address_city", type=SearchFieldDataType.String, searchable=True, filterable=True, facetable=True),
+        SearchField(name="address_postal_code", type=SearchFieldDataType.String, searchable=True, filterable=True),
+        SearchField(name="address_country", type=SearchFieldDataType.String, searchable=True, filterable=True, facetable=True),
+        SearchField(name="address_geo_lat", type=SearchFieldDataType.Double, filterable=True),
+        SearchField(name="address_geo_lon", type=SearchFieldDataType.Double, filterable=True),
+        SearchField(
+            name="opening_hours",
+            type=SearchFieldDataType.Collection(SearchFieldDataType.String),
+            searchable=True,
+            filterable=True,
         ),
+        SearchField(name="contact_phone", type=SearchFieldDataType.String, searchable=True),
+        SearchField(name="contact_website", type=SearchFieldDataType.String, searchable=True),
     ]
 
 
@@ -149,8 +132,9 @@ def _build_item_fields() -> list:
     """Fields for the item index.
 
     Represents a concrete offer instance of a product within a specific supplier
-    context (flyer and timeframe). Combines product attributes, pricing, and
-    promotion data into a single searchable object.
+    context (flyer and timeframe). Product attributes, pricing, and promotion
+    data are stored as flat ``<group>_<field>`` scalars — no composite types —
+    so every field can be surfaced through the agentic-retrieval knowledge base.
     """
     return [
         SearchField(name="id", type=SearchFieldDataType.String, key=True),
@@ -161,56 +145,32 @@ def _build_item_fields() -> list:
         SearchField(name="description_text", type=SearchFieldDataType.String, searchable=True),
         SearchField(name="category_id", type=SearchFieldDataType.String, filterable=True),
         SearchField(name="source_ref", type=SearchFieldDataType.String, searchable=True, filterable=True),
-        ComplexField(
-            name="attributes",
-            fields=[
-                SearchField(name="origin", type=SearchFieldDataType.String, searchable=True, filterable=True, facetable=True),
-                SearchField(name="quality_grade", type=SearchFieldDataType.String, searchable=True, filterable=True),
-                SearchField(name="bio", type=SearchFieldDataType.Boolean, filterable=True, facetable=True),
-                SearchField(name="animal_welfare", type=SearchFieldDataType.String, searchable=True, filterable=True),
-            ],
-        ),
-        ComplexField(
-            name="packaging",
-            fields=[
-                SearchField(name="unit_type", type=SearchFieldDataType.String, searchable=True, filterable=True, facetable=True),
-                SearchField(name="quantity", type=SearchFieldDataType.Double, filterable=True, sortable=True),
-                SearchField(name="packaging_type", type=SearchFieldDataType.String, searchable=True, filterable=True, facetable=True),
-            ],
-        ),
-        ComplexField(
-            name="pricing",
-            fields=[
-                SearchField(name="current_price", type=SearchFieldDataType.Double, filterable=True, sortable=True),
-                SearchField(name="currency", type=SearchFieldDataType.String, filterable=True, facetable=True),
-                SearchField(name="original_price", type=SearchFieldDataType.Double, filterable=True, sortable=True),
-                SearchField(name="discount_percentage", type=SearchFieldDataType.Double, filterable=True, sortable=True),
-                SearchField(name="unit_price", type=SearchFieldDataType.Double, filterable=True, sortable=True),
-                SearchField(name="unit_reference", type=SearchFieldDataType.String, filterable=True, facetable=True),
-            ],
-        ),
-        ComplexField(
-            name="promotion",
-            fields=[
-                SearchField(name="type", type=SearchFieldDataType.String, searchable=True, filterable=True, facetable=True),
-                SearchField(name="bonus_amount", type=SearchFieldDataType.Double, filterable=True, sortable=True),
-                SearchField(name="coupon_required", type=SearchFieldDataType.Boolean, filterable=True, facetable=True),
-            ],
-        ),
-        ComplexField(
-            name="conditions",
-            fields=[
-                SearchField(name="deposit", type=SearchFieldDataType.Double, filterable=True, sortable=True),
-                SearchField(name="availability", type=SearchFieldDataType.String, searchable=True, filterable=True),
-            ],
-        ),
-        ComplexField(
-            name="offer_validity",
-            fields=[
-                SearchField(name="start_date", type=SearchFieldDataType.DateTimeOffset, filterable=True, sortable=True, retrievable=True),
-                SearchField(name="end_date", type=SearchFieldDataType.DateTimeOffset, filterable=True, sortable=True, retrievable=True),
-            ],
-        ),
+        # attributes_*
+        SearchField(name="attributes_origin", type=SearchFieldDataType.String, searchable=True, filterable=True, facetable=True),
+        SearchField(name="attributes_quality_grade", type=SearchFieldDataType.String, searchable=True, filterable=True),
+        SearchField(name="attributes_bio", type=SearchFieldDataType.Boolean, filterable=True, facetable=True),
+        SearchField(name="attributes_animal_welfare", type=SearchFieldDataType.String, searchable=True, filterable=True),
+        # packaging_*
+        SearchField(name="packaging_unit_type", type=SearchFieldDataType.String, searchable=True, filterable=True, facetable=True),
+        SearchField(name="packaging_quantity", type=SearchFieldDataType.Double, filterable=True, sortable=True),
+        SearchField(name="packaging_packaging_type", type=SearchFieldDataType.String, searchable=True, filterable=True, facetable=True),
+        # pricing_*
+        SearchField(name="pricing_current_price", type=SearchFieldDataType.Double, filterable=True, sortable=True),
+        SearchField(name="pricing_currency", type=SearchFieldDataType.String, filterable=True, facetable=True),
+        SearchField(name="pricing_original_price", type=SearchFieldDataType.Double, filterable=True, sortable=True),
+        SearchField(name="pricing_discount_percentage", type=SearchFieldDataType.Double, filterable=True, sortable=True),
+        SearchField(name="pricing_unit_price", type=SearchFieldDataType.Double, filterable=True, sortable=True),
+        SearchField(name="pricing_unit_reference", type=SearchFieldDataType.String, filterable=True, facetable=True),
+        # promotion_*
+        SearchField(name="promotion_type", type=SearchFieldDataType.String, searchable=True, filterable=True, facetable=True),
+        SearchField(name="promotion_bonus_amount", type=SearchFieldDataType.Double, filterable=True, sortable=True),
+        SearchField(name="promotion_coupon_required", type=SearchFieldDataType.Boolean, filterable=True, facetable=True),
+        # conditions_*
+        SearchField(name="conditions_deposit", type=SearchFieldDataType.Double, filterable=True, sortable=True),
+        SearchField(name="conditions_availability", type=SearchFieldDataType.String, searchable=True, filterable=True),
+        # offer_validity_*
+        SearchField(name="offer_validity_start_date", type=SearchFieldDataType.DateTimeOffset, filterable=True, sortable=True),
+        SearchField(name="offer_validity_end_date", type=SearchFieldDataType.DateTimeOffset, filterable=True, sortable=True),
         SearchField(
             name="embedding",
             type=SearchFieldDataType.Collection(SearchFieldDataType.Single),

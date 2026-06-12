@@ -5,6 +5,7 @@ uvicorn==0.49.0
 pydantic==2.13.4
 requests==2.34.2
 agent-framework-foundry==1.8.1
+agent-framework-azure-ai-search==1.0.0b260521
 aiohttp==3.14.1
 azure-ai-projects==2.2.0
 azure-ai-inference==1.0.0b9

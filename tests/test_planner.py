@@ -1,6 +1,6 @@
 import unittest
 
-from src.shared.models import Item, Pricing
+from src.shared.models import Item
 from src.shared.planner import ShoppingRequest, build_shopping_plan
 
 
@@ -13,7 +13,7 @@ class ShoppingPlannerTests(unittest.TestCase):
                 name="Milk 1L",
                 description_text="Whole milk",
                 category_id="dairy",
-                pricing=Pricing(current_price=1.29),
+                pricing_current_price=1.29,
             ),
             Item(
                 item_id="b",
@@ -21,7 +21,7 @@ class ShoppingPlannerTests(unittest.TestCase):
                 name="Milk 1L",
                 description_text="Whole milk promo",
                 category_id="dairy",
-                pricing=Pricing(current_price=0.99),
+                pricing_current_price=0.99,
             ),
         ]
 

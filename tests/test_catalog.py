@@ -1,7 +1,7 @@
 import unittest
 
 from src.shopping_chat.catalog import CatalogService
-from src.shared.models import Item, Pricing
+from src.shared.models import Item
 
 
 class CatalogServiceTests(unittest.TestCase):
@@ -14,7 +14,7 @@ class CatalogServiceTests(unittest.TestCase):
                     name="Bio Avocado",
                     description_text="Fresh avocado from Spain",
                     category_id="vegetables",
-                    pricing=Pricing(current_price=1.2),
+                    pricing_current_price=1.2,
                 )
             ]
         )

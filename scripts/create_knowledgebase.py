@@ -134,21 +134,34 @@ def create_or_update_knowledgebase(
         name=supplier_ks,
         index_name=supplier_index_name,
         description="Retail supplier store locations, opening hours, regional coverage, and flyer validity windows.",
-        source_data_fields=["id", "supplier_id", "brand", "store_name", "region"],
+        source_data_fields=[
+            "id", "supplier_id", "brand", "store_name", "region",
+            "opening_hours", "address_city", "address_country",
+            "contact_phone", "contact_website",
+        ],
     )
     _upsert_knowledge_source(
         client,
         name=category_ks,
         index_name=category_index_name,
         description="Normalized product categories with semantic tags enabling cross-retailer category queries.",
-        source_data_fields=["id", "category_id", "name"],
+        source_data_fields=["id", "category_id", "name", "description_text", "semantic_tags"],
     )
     _upsert_knowledge_source(
         client,
         name=item_ks,
         index_name=item_index_name,
         description="Concrete promotional offers: products, prices, discounts, and packaging across all suppliers.",
-        source_data_fields=["id", "item_id", "name", "supplier_id", "category_id"],
+        source_data_fields=[
+            "id", "item_id", "name", "brand", "supplier_id", "category_id",
+            "description_text",
+            "pricing_current_price", "pricing_currency", "pricing_original_price",
+            "pricing_discount_percentage", "pricing_unit_price", "pricing_unit_reference",
+            "packaging_quantity", "packaging_unit_type", "packaging_packaging_type",
+            "promotion_type", "promotion_bonus_amount", "promotion_coupon_required",
+            "conditions_deposit", "conditions_availability",
+            "offer_validity_start_date", "offer_validity_end_date",
+        ],
     )
 
     _upsert_knowledge_base(

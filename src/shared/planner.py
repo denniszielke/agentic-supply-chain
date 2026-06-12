@@ -37,7 +37,7 @@ def _match_item(product: str, items: Iterable[Item]) -> Item | None:
     ]
     if not scored:
         return None
-    return sorted(scored, key=lambda i: i.pricing.current_price)[0]
+    return sorted(scored, key=lambda i: i.pricing_current_price)[0]
 
 
 def build_shopping_plan(requests: List[ShoppingRequest], catalog: List[Item]) -> ShoppingPlan:
@@ -47,7 +47,7 @@ def build_shopping_plan(requests: List[ShoppingRequest], catalog: List[Item]) ->
         if not best_item:
             continue
         normalized_quantity = max(request.quantity, 1)
-        unit = best_item.pricing.current_price
+        unit = best_item.pricing_current_price
         plan_lines.append(
             PlannedLine(
                 product=request.product,

@@ -59,17 +59,8 @@ from dotenv import load_dotenv
 from pydantic import BaseModel, Field, ValidationError
 
 from src.shared.models import (
-    Address,
-    Attributes,
     Category,
-    Conditions,
-    Contact,
     Item,
-    OfferValidity,
-    OpeningHour,
-    Packaging,
-    Pricing,
-    Promotion,
     Supplier,
 )
 
@@ -1162,7 +1153,6 @@ class FlyerProcessor:
                 supplier_id=job.supplier_id,
                 brand=job.supplier_id,
                 store_name=job.supplier_id,
-                address=Address(street="", city="", postal_code=""),
             )
 
         # -- Categories --

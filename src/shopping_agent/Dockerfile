@@ -8,4 +8,4 @@ RUN if [ -f /tmp/requirements.txt ]; then \
     fi
 COPY ./src /app/src
 EXPOSE 8090
-CMD ["uvicorn", "src.shopping_agent.a2a_api:app", "--host", "0.0.0.0", "--port", "8090"]
+CMD ["python", "-m", "src.shopping_agent.shopping_agent"]

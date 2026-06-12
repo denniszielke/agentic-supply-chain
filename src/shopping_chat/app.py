@@ -8,10 +8,7 @@ from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
 from src.shopping_chat.catalog import CatalogService
-from src.shared.models import (
-    Address,
-    Supplier,
-)
+from src.shared.models import Supplier
 from src.shared.seed_data import seed_items
 
 app = FastAPI(title="agentic-supply-chain MCP app")
@@ -23,24 +20,20 @@ def _seed_suppliers() -> List[Supplier]:
             supplier_id="rewe-berlin-week-24",
             brand="REWE",
             store_name="REWE Berlin Mitte",
-            address=Address(
-                street="Alexanderplatz 1",
-                city="Berlin",
-                postal_code="10178",
-                country="DE",
-            ),
+            address_street="Alexanderplatz 1",
+            address_city="Berlin",
+            address_postal_code="10178",
+            address_country="DE",
             region="Berlin",
         ),
         Supplier(
             supplier_id="aldi-berlin-week-24",
             brand="ALDI SÜD",
             store_name="ALDI Berlin Süd",
-            address=Address(
-                street="Leipziger Str. 30",
-                city="Berlin",
-                postal_code="10117",
-                country="DE",
-            ),
+            address_street="Leipziger Str. 30",
+            address_city="Berlin",
+            address_postal_code="10117",
+            address_country="DE",
             region="Berlin",
         ),
     ]

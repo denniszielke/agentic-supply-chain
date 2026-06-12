@@ -33,12 +33,13 @@ a downstream shopping-planner agent can immediately act on.
 
 | Index              | Key fields                                                                           |
 |--------------------|--------------------------------------------------------------------------------------|
-| retail-suppliers   | supplier_id, brand, store_name, region, opening_hours, offer_validity                |
+| retail-suppliers   | supplier_id, brand, store_name, region, opening_hours, address_city                  |
 | retail-categories  | category_id, name, description_text, semantic_tags                                   |
 | retail-items       | item_id, supplier_id, name, brand, category_id, description_text,                    |
-|                    | pricing.current_price, pricing.original_price, pricing.discount_percentage,          |
-|                    | pricing.unit_price, pricing.unit_reference, packaging.unit_type, packaging.quantity, |
-|                    | packaging.packaging_type, promotion.type, conditions.deposit, offer_validity         |
+|                    | pricing_current_price, pricing_original_price, pricing_discount_percentage,          |
+|                    | pricing_unit_price, pricing_unit_reference, packaging_unit_type, packaging_quantity, |
+|                    | packaging_packaging_type, promotion_type, conditions_deposit,                        |
+|                    | offer_validity_start_date, offer_validity_end_date                                   |
 
 ## Extraction rules
 
@@ -51,12 +52,12 @@ a downstream shopping-planner agent can immediately act on.
    - current_price (EUR); original_price and discount_percentage if present
    - unit_price + unit_reference for apples-to-apples comparisons
    - packaging: quantity + unit_type (e.g. "500 gramm Packung")
-   - promotion.type if a special deal is active
-   - conditions.deposit if applicable
-   - offer_validity.start_date / end_date so the agent can check currency
+   - promotion_type if a special deal is active
+   - conditions_deposit if applicable
+   - offer_validity_start_date / offer_validity_end_date so the agent can check currency
 
 3. **Suppliers second.**  For each unique supplier referenced by the items,
-   include supplier_id, brand, store_name, region, and offer_validity window.
+   include supplier_id, brand, store_name, region, and opening_hours.
 
 4. **Categories third.**  Include category_id and name only; omit
    description_text unless it is needed to resolve an ambiguous query.
@@ -66,7 +67,7 @@ a downstream shopping-planner agent can immediately act on.
    Always prefer unit_price / unit_reference over absolute price when package
    sizes differ.
 
-6. **Validity.**  Flag any item whose offer_validity.end_date is in the past
+6. **Validity.**  Flag any item whose offer_validity_end_date is in the past
    relative to today so the agent can exclude stale offers.
 
 7. **Output format.**  Return a compact JSON object:
@@ -120,10 +121,10 @@ For each item on the shopper's list:
 a. Search retail-items by name and description.  If no direct hit, use the
    category index to find the closest category_id and search by category.
 b. Collect ALL candidate offers across ALL suppliers, not just the cheapest.
-c. Discard offers whose `offer_validity.end_date` is before today's date.
+c. Discard offers whose `offer_validity_end_date` is before today's date.
 d. For each candidate record: item_id, supplier_id, brand, name, category_id,
    current_price, unit_price, unit_reference, packaging (quantity + unit_type),
-   discount_percentage, promotion.type, and conditions.deposit.
+   discount_percentage, promotion_type, and conditions_deposit.
 
 ### 2 — Compare candidates fairly
 
@@ -132,10 +133,10 @@ When candidates differ in package size:
 - **Always compare via unit_price / unit_reference** (e.g. price per kg or
   per 100 ml) rather than absolute shelf price.
 - If unit_price is absent, compute it:
-  `derived_unit_price = current_price / (packaging.quantity / reference_quantity)`
+  `derived_unit_price = current_price / (packaging_quantity / reference_quantity)`
 - A larger package at a higher absolute price may still be cheaper per unit —
   flag this explicitly to the shopper.
-- Note any deposit (conditions.deposit) in the comparison; add it to the
+- Note any deposit (conditions_deposit) in the comparison; add it to the
   effective price when comparing bottled products.
 
 ### 3 — Select the best offer per item
@@ -251,17 +252,17 @@ You query `supply-chain-kb`, which spans three indexes:
 
 **retail-items** (one document per promotional offer)
 - item_id, supplier_id, name, brand, category_id, description_text
-- pricing.current_price, pricing.original_price, pricing.discount_percentage
-- pricing.unit_price, pricing.unit_reference  ← use for fair comparison
-- packaging.quantity, packaging.unit_type, packaging.packaging_type
-- promotion.type  (e.g. "Angebot der Woche", "4+1 gratis", null = regular)
-- conditions.deposit  (add to effective price for bottles/cans)
-- offer_validity.start_date, offer_validity.end_date  (ISO-8601 UTC)
+- pricing_current_price, pricing_original_price, pricing_discount_percentage
+- pricing_unit_price, pricing_unit_reference  ← use for fair comparison
+- packaging_quantity, packaging_unit_type, packaging_packaging_type
+- promotion_type  (e.g. "Angebot der Woche", "4+1 gratis", null = regular)
+- conditions_deposit  (add to effective price for bottles/cans)
+- offer_validity_start_date, offer_validity_end_date  (ISO-8601 UTC)
 
 **retail-suppliers** (one document per store / flyer context)
 - supplier_id, brand, store_name, region
-- opening_hours[].day / open / close
-- offer_validity.start_date, offer_validity.end_date
+- opening_hours  (list of "<day> <open>-<close>" strings)
+- address_city, address_country, contact_phone, contact_website
 
 **retail-categories** (canonical category taxonomy)
 - category_id, name, description_text, semantic_tags
@@ -277,16 +278,16 @@ a. Query retail-items by name and description_text (full-text + vector).
 b. If no direct hit, resolve the category via retail-categories and repeat
    the search filtered by category_id.
 c. Determine availability status:
-   - **Available now**: offer_validity.end_date ≥ today AND
-     offer_validity.start_date ≤ today.
-   - **Upcoming**: offer_validity.start_date > today — note the start date.
-   - **Expired**: offer_validity.end_date < today — exclude from the plan,
+   - **Available now**: offer_validity_end_date ≥ today AND
+     offer_validity_start_date ≤ today.
+   - **Upcoming**: offer_validity_start_date > today — note the start date.
+   - **Expired**: offer_validity_end_date < today — exclude from the plan,
      but mention the supplier if it may carry the product at regular price.
    - **Not found**: no indexed offer at all — mark as ✗ Not in promotion.
 
 For every available hit, record: item_id, supplier_id, brand, name,
 current_price, unit_price, unit_reference, packaging summary,
-discount_percentage, promotion.type, offer_validity window.
+discount_percentage, promotion_type, offer_validity window.
 
 ---
 
@@ -295,8 +296,8 @@ discount_percentage, promotion.type, offer_validity window.
 **Direct comparison** (same product, multiple suppliers):
 - Compare by unit_price / unit_reference (e.g. €/kg, €/100 ml).
 - If unit_price is missing, derive it:
-    derived_unit_price = current_price ÷ (packaging.quantity ÷ reference_qty)
-- Add conditions.deposit to effective price for bottled/canned items.
+    derived_unit_price = current_price ÷ (packaging_quantity ÷ reference_qty)
+- Add conditions_deposit to effective price for bottled/canned items.
 - Flag the cheapest supplier and the price gap (%) to the next cheapest.
 
 **Category comparison** (no exact match, or shopper asks for alternatives):
@@ -350,7 +351,7 @@ List any items not covered by the chosen 2-stop plan:
 Use the indexed offer_validity dates across ALL flyers (including expired and
 upcoming ones) to build a forward-looking picture:
 
-a. **Upcoming confirmed**: items with offer_validity.start_date > today.
+a. **Upcoming confirmed**: items with offer_validity_start_date > today.
    Report supplier, expected start date, and indicative price if available.
 
 b. **Recurrence pattern**: if the same category_id appears in multiple
