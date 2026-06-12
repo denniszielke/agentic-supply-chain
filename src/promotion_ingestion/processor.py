@@ -5,9 +5,9 @@ Pipeline
 --------
 1. Materialise each source (URL or local path) to a local working directory.
 2. Split PDF files into per-page PNG images using PyMuPDF.
-3. Run a sliding-window batch loop over the collected images, calling an Azure
-   OpenAI vision model to incrementally extract supplier, category, and item
-   data.
+3. Run a sliding-window batch loop over the collected images, calling a
+   Microsoft Foundry vision model (via the agent-framework Foundry SDK) to
+   incrementally extract supplier, category, and item data.
 4. Persist the consolidated result as a JSON file and/or push it to Azure AI
    Search indexes.
 
@@ -26,10 +26,13 @@ AZURE_SEARCH_SUPPLIER_INDEX_NAME Supplier index name (default: retail-suppliers)
 AZURE_SEARCH_CATEGORY_INDEX_NAME Category index name (default: retail-categories)
 AZURE_SEARCH_ITEM_INDEX_NAME     Item index name (default: retail-items)
 AZURE_OPENAI_EMBEDDING_DEPLOYMENT_NAME  Embedding model for category/item vectors (optional; skips vectors if unset)
+FOUNDRY_MODELS_ENDPOINT          Foundry inference endpoint for embeddings (optional; defaults to <project-host>/models)
+FOUNDRY_MODELS_API_KEY           API key for the Foundry inference endpoint (optional; falls back to DefaultAzureCredential)
 """
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import json
 import logging
@@ -42,11 +45,12 @@ from typing import Iterable, List, Optional
 from urllib.parse import urlparse
 
 import requests
+from agent_framework import Content, Message
+from agent_framework.foundry import FoundryChatClient, FoundryEmbeddingClient
 from azure.core.credentials import AzureKeyCredential
-from azure.identity import DefaultAzureCredential, get_bearer_token_provider
+from azure.identity import DefaultAzureCredential
 from azure.search.documents import SearchClient
 from dotenv import load_dotenv
-from openai import AzureOpenAI
 from pydantic import BaseModel, Field
 
 from src.shared.models import (
@@ -77,6 +81,9 @@ _DEFAULT_WORK_DIR = "data/tempfiles"
 _DEFAULT_BATCH_SIZE = 8
 _DEFAULT_OVERLAP = 2
 _DEFAULT_MODEL = "gpt-5.4-mini"
+# Longest-edge pixel cap for images sent to the vision model. Keeps per-request
+# payloads small enough to avoid API timeouts when batching multiple pages.
+_MAX_IMAGE_DIMENSION = int(os.getenv("PROCESSING_MAX_IMAGE_DIMENSION", "1536"))
 
 # ---------------------------------------------------------------------------
 # Job data models
@@ -161,62 +168,55 @@ INSTRUCTIONS FOR THIS BATCH:
 
 
 # ---------------------------------------------------------------------------
-# OpenAI client factory
+# Foundry client factories
 # ---------------------------------------------------------------------------
 
 
-def _create_openai_client() -> AzureOpenAI:
-    """Return an Azure OpenAI client.
+def _create_chat_client(model: str) -> FoundryChatClient:
+    """Return a Foundry chat client bound to *model*.
 
-    Priority:
-    1. ``AZURE_AI_PROJECT_ENDPOINT`` — derives the Azure AI account root URL and
-       uses the ``https://ai.azure.com/.default`` token scope.
-    2. ``AZURE_OPENAI_ENDPOINT`` — uses the direct Azure OpenAI endpoint with
-       the ``https://cognitiveservices.azure.com/.default`` scope.
-    ``AZURE_OPENAI_API_KEY`` is used instead of DefaultAzureCredential when set.
+    Resolves the Foundry project endpoint from ``AZURE_AI_PROJECT_ENDPOINT``
+    (or ``FOUNDRY_PROJECT_ENDPOINT``) and authenticates with
+    ``DefaultAzureCredential``.
     """
-    api_key = os.getenv("AZURE_OPENAI_API_KEY", "").strip() or None
-    api_version = os.getenv("OPENAI_API_VERSION", "2025-01-01-preview")
+    project_endpoint = (
+        os.getenv("AZURE_AI_PROJECT_ENDPOINT", "").strip()
+        or os.getenv("FOUNDRY_PROJECT_ENDPOINT", "").strip()
+    )
+    if not project_endpoint:
+        raise RuntimeError(
+            "No Foundry project endpoint configured. "
+            "Set AZURE_AI_PROJECT_ENDPOINT or FOUNDRY_PROJECT_ENDPOINT."
+        )
+    return FoundryChatClient(
+        project_endpoint=project_endpoint,
+        model=model,
+        credential=DefaultAzureCredential(),
+    )
 
-    project_endpoint = os.getenv("AZURE_AI_PROJECT_ENDPOINT", "").strip()
-    if project_endpoint:
-        # Derive account root (scheme + host) from the project endpoint so that
-        # AzureOpenAI can construct the standard /openai/ base URL correctly.
-        # e.g. https://ai-account-xxx.services.ai.azure.com/api/projects/name
-        #   -> https://ai-account-xxx.services.ai.azure.com
-        parsed = urlparse(project_endpoint)
-        account_root = f"{parsed.scheme}://{parsed.netloc}"
-        if api_key:
-            return AzureOpenAI(
-                azure_endpoint=account_root, api_key=api_key, api_version=api_version
-            )
-        token_provider = get_bearer_token_provider(
-            DefaultAzureCredential(), "https://ai.azure.com/.default"
-        )
-        return AzureOpenAI(
-            azure_endpoint=account_root,
-            azure_ad_token_provider=token_provider,
-            api_version=api_version,
-        )
 
-    direct_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT", "").strip()
-    if direct_endpoint:
-        if api_key:
-            return AzureOpenAI(
-                azure_endpoint=direct_endpoint, api_key=api_key, api_version=api_version
-            )
-        token_provider = get_bearer_token_provider(
-            DefaultAzureCredential(), "https://cognitiveservices.azure.com/.default"
-        )
-        return AzureOpenAI(
-            azure_endpoint=direct_endpoint,
-            azure_ad_token_provider=token_provider,
-            api_version=api_version,
-        )
+def _create_embedding_client(model: str) -> FoundryEmbeddingClient:
+    """Return a Foundry embedding client for *model*.
 
-    raise RuntimeError(
-        "No Azure OpenAI endpoint configured. "
-        "Set AZURE_AI_PROJECT_ENDPOINT or AZURE_OPENAI_ENDPOINT."
+    Resolves the Foundry inference endpoint from ``FOUNDRY_MODELS_ENDPOINT``,
+    falling back to the ``/models`` path on the project endpoint host. Uses
+    ``FOUNDRY_MODELS_API_KEY`` when set, otherwise ``DefaultAzureCredential``.
+    """
+    endpoint = os.getenv("FOUNDRY_MODELS_ENDPOINT", "").strip()
+    if not endpoint:
+        project_endpoint = (
+            os.getenv("AZURE_AI_PROJECT_ENDPOINT", "").strip()
+            or os.getenv("FOUNDRY_PROJECT_ENDPOINT", "").strip()
+        )
+        if project_endpoint:
+            parsed = urlparse(project_endpoint)
+            endpoint = f"{parsed.scheme}://{parsed.netloc}/models"
+
+    api_key = os.getenv("FOUNDRY_MODELS_API_KEY", "").strip() or None
+    if api_key:
+        return FoundryEmbeddingClient(model=model, endpoint=endpoint, api_key=api_key)
+    return FoundryEmbeddingClient(
+        model=model, endpoint=endpoint, credential=DefaultAzureCredential()
     )
 
 
@@ -248,13 +248,13 @@ class SearchIndexPusher:
         self._category_client = SearchClient(endpoint, category_index, credential)
         self._item_client = SearchClient(endpoint, item_index, credential)
         self._embedding_model = os.getenv("AZURE_OPENAI_EMBEDDING_DEPLOYMENT_NAME", "").strip()
-        self._openai_client = None
+        self._embedding_client: FoundryEmbeddingClient | None = None
 
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
 
-    def push(self, result: ExtractionResult) -> None:
+    async def push(self, result: ExtractionResult) -> None:
         """Upload all entities in *result* to their respective search indexes."""
         if result.supplier:
             doc = result.supplier.model_dump(mode="json")
@@ -262,7 +262,9 @@ class SearchIndexPusher:
             logger.info("Indexed supplier '%s'.", result.supplier.supplier_id)
 
         if result.categories:
-            embeddings = self._embed([c.description_text or c.name for c in result.categories])
+            embeddings = await self._embed(
+                [c.description_text or c.name for c in result.categories]
+            )
             cat_docs = []
             for i, cat in enumerate(result.categories):
                 doc = cat.model_dump(mode="json")
@@ -273,7 +275,9 @@ class SearchIndexPusher:
             logger.info("Indexed %d categories.", len(cat_docs))
 
         if result.items:
-            embeddings = self._embed([it.description_text or it.name for it in result.items])
+            embeddings = await self._embed(
+                [it.description_text or it.name for it in result.items]
+            )
             item_docs = []
             for i, item in enumerate(result.items):
                 doc = item.model_dump(mode="json")
@@ -282,6 +286,10 @@ class SearchIndexPusher:
                 item_docs.append(doc)
             self._item_client.merge_or_upload_documents(item_docs)
             logger.info("Indexed %d items.", len(item_docs))
+
+        if self._embedding_client is not None:
+            await self._embedding_client.close()
+            self._embedding_client = None
 
         print(
             f"Indexed to AI Search: 1 supplier, {len(result.categories)} categories, "
@@ -292,22 +300,22 @@ class SearchIndexPusher:
     # Embedding helpers
     # ------------------------------------------------------------------
 
-    def _get_openai_client(self):
-        if self._openai_client is None:
-            self._openai_client = _create_openai_client()
-        return self._openai_client
+    def _get_embedding_client(self) -> FoundryEmbeddingClient:
+        if self._embedding_client is None:
+            self._embedding_client = _create_embedding_client(self._embedding_model)
+        return self._embedding_client
 
-    def _embed(self, texts: list[str]) -> list[list[float]] | None:
+    async def _embed(self, texts: list[str]) -> list[list[float]] | None:
         """Generate embeddings in batches; returns None if no model is configured."""
         if not self._embedding_model or not texts:
             return None
         try:
-            client = self._get_openai_client()
+            client = self._get_embedding_client()
             results: list[list[float]] = []
             for start in range(0, len(texts), _EMBEDDING_BATCH_SIZE):
                 batch = texts[start: start + _EMBEDDING_BATCH_SIZE]
-                resp = client.embeddings.create(model=self._embedding_model, input=batch)
-                results.extend(item.embedding for item in resp.data)
+                resp = await client.get_embeddings(batch)
+                results.extend(item.vector for item in resp)
             return results
         except Exception as exc:
             logger.warning("Embedding generation failed, skipping vectors: %s", exc)
@@ -338,7 +346,7 @@ class FlyerProcessor:
     # Public API
     # ------------------------------------------------------------------
 
-    def process(self, job: JobInput, push_to_search: bool = False, output_path: str | None = "data/extraction-result.json") -> ExtractionResult:
+    async def process(self, job: JobInput, push_to_search: bool = False, output_path: str | None = "data/extraction-result.json") -> ExtractionResult:
         """Run the full extraction pipeline for *job* and return the result."""
         session_dir = self.work_dir / job.supplier_id
         session_dir.mkdir(parents=True, exist_ok=True)
@@ -361,7 +369,7 @@ class FlyerProcessor:
         logger.info("Processing %d image(s) for supplier '%s'.", len(image_files), job.supplier_id)
 
         # 2. Run sliding-window extraction
-        result = self._extract_from_batches(image_files, job)
+        result = await self._extract_from_batches(image_files, job)
 
         logger.info(
             "Extraction complete: supplier=%s, categories=%d, items=%d",
@@ -375,7 +383,7 @@ class FlyerProcessor:
         )
 
         # 3. Output
-        self._finalise(result, push_to_search, output_path)
+        await self._finalise(result, push_to_search, output_path)
         return result
 
     # ------------------------------------------------------------------
@@ -455,33 +463,36 @@ class FlyerProcessor:
     # Extraction loop
     # ------------------------------------------------------------------
 
-    def _extract_from_batches(self, image_files: list[Path], job: JobInput) -> ExtractionResult:
+    async def _extract_from_batches(self, image_files: list[Path], job: JobInput) -> ExtractionResult:
         """Drive the sliding-window extraction and return a merged result."""
         current_state = json.dumps({"supplier": None, "categories": [], "items": []})
         system_prompt = _SYSTEM_PROMPT.format(ontology=self._ontology_summary)
+        batch_idx = -1
 
-        for batch_idx, batch in enumerate(
-            self._sliding_windows(image_files, self.batch_size, self.overlap)
-        ):
-            logger.info(
-                "Batch %d/%d: %d image(s) [%s … %s]",
-                batch_idx + 1,
-                -1,
-                len(batch),
-                batch[0].name,
-                batch[-1].name,
+        try:
+            for batch_idx, batch in enumerate(
+                self._sliding_windows(image_files, self.batch_size, self.overlap)
+            ):
+                logger.info(
+                    "Batch %d/%d: %d image(s) [%s … %s]",
+                    batch_idx + 1,
+                    -1,
+                    len(batch),
+                    batch[0].name,
+                    batch[-1].name,
+                )
+                messages = self._build_messages(system_prompt, batch, current_state)
+                response = await self._client.get_response(
+                    messages,
+                    options={"temperature": 0, "max_tokens": 16384},
+                )
+                raw = (response.text or "").replace("```json", "").replace("```", "").strip()
+                current_state = raw
+                logger.info("Batch %d processed.", batch_idx + 1)
+        except KeyboardInterrupt:
+            logger.warning(
+                "Interrupted after batch %d — saving partial results.", batch_idx + 1
             )
-            messages = self._build_messages(system_prompt, batch, current_state)
-            response = self._client.chat.completions.create(
-                model=self.model_name,
-                messages=messages,
-                temperature=0,
-                max_tokens=16384,
-            )
-            raw = response.choices[0].message.content or ""
-            raw = raw.replace("```json", "").replace("```", "").strip()
-            current_state = raw
-            logger.info("Batch %d processed.", batch_idx + 1)
 
         return self._parse_extraction_result(current_state, job)
 
@@ -491,22 +502,20 @@ class FlyerProcessor:
 
     def _build_messages(
         self, system_prompt: str, batch: list[Path], current_state: str
-    ) -> list[dict]:
-        content_blocks: list[dict] = [
-            {"type": "text", "text": _TASK_PROMPT + "\n\nCURRENT STATE:\n" + current_state}
+    ) -> list[Message]:
+        """Return the system + user Messages for a single batch."""
+        contents: list[Content] = [
+            Content.from_text(text=_TASK_PROMPT + "\n\nCURRENT STATE:\n" + current_state)
         ]
         for img_path in batch:
             b64 = self._image_to_base64(img_path)
             mime = "image/jpeg" if img_path.suffix.lower() in {".jpg", ".jpeg"} else "image/png"
-            content_blocks.append(
-                {
-                    "type": "image_url",
-                    "image_url": {"url": f"data:{mime};base64,{b64}", "detail": "low"},
-                }
+            contents.append(
+                Content.from_uri(uri=f"data:{mime};base64,{b64}", media_type=mime)
             )
         return [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": content_blocks},
+            Message(role="system", contents=[Content.from_text(text=system_prompt)]),
+            Message(role="user", contents=contents),
         ]
 
     @staticmethod
@@ -515,6 +524,11 @@ class FlyerProcessor:
             from PIL import Image  # type: ignore
 
             with Image.open(image_path) as img:
+                if _MAX_IMAGE_DIMENSION > 0 and max(img.size) > _MAX_IMAGE_DIMENSION:
+                    img.thumbnail(
+                        (_MAX_IMAGE_DIMENSION, _MAX_IMAGE_DIMENSION),
+                        Image.LANCZOS,
+                    )
                 buf = BytesIO()
                 img.save(buf, format="PNG")
                 return base64.b64encode(buf.getvalue()).decode("utf-8")
@@ -628,7 +642,7 @@ class FlyerProcessor:
     # Persistence
     # ------------------------------------------------------------------
 
-    def _finalise(
+    async def _finalise(
         self,
         result: ExtractionResult,
         push_to_search: bool,
@@ -638,7 +652,7 @@ class FlyerProcessor:
         if output_path:
             self._persist(result, Path(output_path))
         if push_to_search:
-            SearchIndexPusher().push(result)
+            await SearchIndexPusher().push(result)
         if not output_path and not push_to_search:
             logger.warning("No output target configured — result discarded.")
 
@@ -653,11 +667,11 @@ class FlyerProcessor:
         output_path.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
 
     # ------------------------------------------------------------------
-    # Azure OpenAI client factory
+    # Foundry chat client factory
     # ------------------------------------------------------------------
 
-    def _build_client(self):
-        return _create_openai_client()
+    def _build_client(self) -> FoundryChatClient:
+        return _create_chat_client(self.model_name)
 
 
 # ---------------------------------------------------------------------------
@@ -707,7 +721,13 @@ def main() -> None:
 
     job = JobInput(supplier_id=args.supplier_id, sources=args.sources, output_path=output_path or "")
     processor = FlyerProcessor()
-    processor.process(job, push_to_search=args.push_to_search, output_path=output_path)
+    try:
+        asyncio.run(
+            processor.process(job, push_to_search=args.push_to_search, output_path=output_path)
+        )
+    except KeyboardInterrupt:
+        print("\nInterrupted by user.", flush=True)
+        raise SystemExit(130)
 
 
 if __name__ == "__main__":
