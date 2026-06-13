@@ -7,6 +7,7 @@ from azure.core.credentials import AzureKeyCredential
 from azure.identity import DefaultAzureCredential
 from azure.search.documents.indexes import SearchIndexClient
 from azure.search.documents.indexes.models import (
+    ComplexField,
     HnswAlgorithmConfiguration,
     SearchField,
     SearchFieldDataType,
@@ -69,15 +70,13 @@ def _semantic_search(
 def _build_supplier_fields() -> list:
     """Fields for the supplier index.
 
-    Represents a single flyer context instance (store, region, validity window,
-    opening hours, contact, and ingestion metadata). All fields are flat scalars
-    or string collections — no composite (ComplexField) types — so the index can
-    be surfaced directly through the agentic-retrieval knowledge base.
+    A supplier represents a retail brand and can have one or more store
+    locations. Each location is stored as a complex sub-document inside the
+    ``locations`` collection field, carrying its own address, opening hours,
+    and contact details.
     """
-    return [
-        SearchField(name="id", type=SearchFieldDataType.String, key=True),
-        SearchField(name="supplier_id", type=SearchFieldDataType.String, filterable=True),
-        SearchField(name="brand", type=SearchFieldDataType.String, searchable=True, filterable=True, facetable=True),
+    location_fields = [
+        SearchField(name="store_id", type=SearchFieldDataType.String),
         SearchField(name="store_name", type=SearchFieldDataType.String, searchable=True, filterable=True),
         SearchField(name="region", type=SearchFieldDataType.String, searchable=True, filterable=True, facetable=True),
         SearchField(name="address_street", type=SearchFieldDataType.String, searchable=True),
@@ -90,10 +89,19 @@ def _build_supplier_fields() -> list:
             name="opening_hours",
             type=SearchFieldDataType.Collection(SearchFieldDataType.String),
             searchable=True,
-            filterable=True,
         ),
         SearchField(name="contact_phone", type=SearchFieldDataType.String, searchable=True),
         SearchField(name="contact_website", type=SearchFieldDataType.String, searchable=True),
+    ]
+    return [
+        SearchField(name="id", type=SearchFieldDataType.String, key=True),
+        SearchField(name="supplier_id", type=SearchFieldDataType.String, filterable=True),
+        SearchField(name="brand", type=SearchFieldDataType.String, searchable=True, filterable=True, facetable=True),
+        ComplexField(
+            name="locations",
+            collection=True,
+            fields=location_fields,
+        ),
     ]
 
 
