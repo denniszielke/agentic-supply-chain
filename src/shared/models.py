@@ -49,7 +49,7 @@ def _flatten_opening_hours(oh) -> List[str]:
     """
     if not isinstance(oh, list):
         return []
-    flat: list[str] = []
+    flat: List[str] = []
     for entry in oh:
         if isinstance(entry, dict):
             day = (entry.get("day") or "").strip()

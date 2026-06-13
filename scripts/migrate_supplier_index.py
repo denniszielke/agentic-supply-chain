@@ -43,9 +43,10 @@ import os
 import sys
 from itertools import islice
 from pathlib import Path
-from typing import Iterator
+from typing import Dict, Iterator, List
 
 from azure.core.credentials import AzureKeyCredential
+from azure.core.exceptions import ResourceNotFoundError
 from azure.identity import DefaultAzureCredential
 from azure.search.documents import SearchClient
 from azure.search.documents.indexes import SearchIndexClient
@@ -142,7 +143,7 @@ def _old_doc_to_location(doc: dict) -> dict:
     }
 
 
-def convert_to_new_format(old_docs: list[dict]) -> list[dict]:
+def convert_to_new_format(old_docs: List[dict]) -> List[Dict]:
     """Group old flat supplier documents by brand and merge into new-format docs.
 
     Multiple old documents that share the same ``brand`` value (e.g. several
@@ -197,12 +198,8 @@ def delete_index(index_name: str, dry_run: bool = False) -> None:
     try:
         client.delete_index(index_name)
         print(f"[delete] Index '{index_name}' deleted.")
-    except Exception as exc:  # noqa: BLE001
-        # 404 means the index is already gone — that's fine.
-        if "404" in str(exc) or "ResourceNotFound" in type(exc).__name__:
-            print(f"[delete] Index '{index_name}' did not exist — nothing to delete.")
-        else:
-            raise
+    except ResourceNotFoundError:
+        print(f"[delete] Index '{index_name}' did not exist — nothing to delete.")
 
 
 # ---------------------------------------------------------------------------
@@ -243,7 +240,7 @@ def _batched(iterable, n: int) -> Iterator[list]:
         yield batch
 
 
-def import_new_documents(index_name: str, new_docs: list[dict], dry_run: bool = False) -> None:
+def import_new_documents(index_name: str, new_docs: List[Dict], dry_run: bool = False) -> None:
     """Upload *new_docs* to *index_name* in batches."""
     print(f"[import] Uploading {len(new_docs)} document(s) to '{index_name}' …")
     if dry_run:
