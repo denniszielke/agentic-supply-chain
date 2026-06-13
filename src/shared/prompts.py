@@ -33,7 +33,7 @@ a downstream shopping-planner agent can immediately act on.
 
 | Index              | Key fields                                                                           |
 |--------------------|--------------------------------------------------------------------------------------|
-| retail-suppliers   | supplier_id, brand, store_name, region, opening_hours, address_city                  |
+| retail-suppliers   | supplier_id, brand, locations (store_id, store_name, region, opening_hours, address_city) |
 | retail-categories  | category_id, name, description_text, semantic_tags                                   |
 | retail-items       | item_id, supplier_id, name, brand, category_id, description_text,                    |
 |                    | pricing_current_price, pricing_original_price, pricing_discount_percentage,          |
@@ -57,7 +57,7 @@ a downstream shopping-planner agent can immediately act on.
    - offer_validity_start_date / offer_validity_end_date so the agent can check currency
 
 3. **Suppliers second.**  For each unique supplier referenced by the items,
-   include supplier_id, brand, store_name, region, and opening_hours.
+   include supplier_id, brand, and locations (with store_name, region, and opening_hours per location).
 
 4. **Categories third.**  Include category_id and name only; omit
    description_text unless it is needed to resolve an ambiguous query.
@@ -259,10 +259,11 @@ You query `supply-chain-kb`, which spans three indexes:
 - conditions_deposit  (add to effective price for bottles/cans)
 - offer_validity_start_date, offer_validity_end_date  (ISO-8601 UTC)
 
-**retail-suppliers** (one document per store / flyer context)
-- supplier_id, brand, store_name, region
-- opening_hours  (list of "<day> <open>-<close>" strings)
-- address_city, address_country, contact_phone, contact_website
+**retail-suppliers** (one document per brand, with multiple store locations)
+- supplier_id, brand
+- locations[]: store_id, store_name, region
+- locations[]: opening_hours (list of "<day> <open>-<close>" strings)
+- locations[]: address_city, address_country, contact_phone, contact_website
 
 **retail-categories** (canonical category taxonomy)
 - category_id, name, description_text, semantic_tags

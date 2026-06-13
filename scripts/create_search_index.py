@@ -223,8 +223,8 @@ def create_or_update_indexes(
         with_vector_search=False,
         semantic_search=_semantic_search(
             config_name="supplier-semantic",
-            title_field="store_name",
-            content_fields=["region"],
+            title_field="brand",
+            content_fields=["supplier_id"],
             keyword_fields=["brand"],
         ),
     )
