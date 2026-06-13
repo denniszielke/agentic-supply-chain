@@ -40,18 +40,36 @@ class IngestionMetadata(BaseModel):
         return value
 
 
-class Supplier(BaseModel):
-    """Flat supplier document.
+def _flatten_opening_hours(oh) -> List[str]:
+    """Normalise an opening_hours value to a flat list of strings.
 
-    Nested address / contact objects and the opening-hours collection have been
-    flattened into prefixed scalar fields so the index contains no composite
-    (ComplexField) types. ``opening_hours`` is a simple string collection where
-    each entry is formatted as ``"<day> <open>-<close>"``.
+    Accepts a list of dicts (``{"day": ..., "open": ..., "close": ...}``) or a
+    list of plain strings, and always returns a list of ``"<day> <open>-<close>"``
+    formatted strings.
+    """
+    if not isinstance(oh, list):
+        return []
+    flat: List[str] = []
+    for entry in oh:
+        if isinstance(entry, dict):
+            day = (entry.get("day") or "").strip()
+            open_ = (entry.get("open") or "").strip()
+            close = (entry.get("close") or "").strip()
+            hours = f"{open_}-{close}".strip("-")
+            flat.append(f"{day} {hours}".strip())
+        elif isinstance(entry, str):
+            flat.append(entry)
+    return flat
+
+
+class StoreLocation(BaseModel):
+    """A single physical store location belonging to a supplier.
+
+    Each supplier can have one or more store locations. Each location carries
+    its own address, opening hours, and contact details.
     """
 
-    id: str = ""
-    supplier_id: str
-    brand: str
+    store_id: str
     store_name: str
     region: Optional[str] = None
 
@@ -69,8 +87,8 @@ class Supplier(BaseModel):
 
     @model_validator(mode="before")
     @classmethod
-    def _flatten(cls, data):
-        """Accept legacy nested input (address/contact/opening_hours) and flatten it."""
+    def _coerce(cls, data):
+        """Accept legacy nested address/contact/opening_hours input."""
         if not isinstance(data, dict):
             return data
         data = dict(data)
@@ -94,22 +112,73 @@ class Supplier(BaseModel):
 
         oh = data.get("opening_hours")
         if isinstance(oh, list):
-            flat: list[str] = []
-            for entry in oh:
-                if isinstance(entry, dict):
-                    day = (entry.get("day") or "").strip()
-                    open_ = (entry.get("open") or "").strip()
-                    close = (entry.get("close") or "").strip()
-                    hours = f"{open_}-{close}".strip("-")
-                    flat.append(f"{day} {hours}".strip())
-                elif isinstance(entry, str):
-                    flat.append(entry)
-            data["opening_hours"] = flat
+            data["opening_hours"] = _flatten_opening_hours(oh)
         return data
 
     @field_validator("opening_hours", mode="before")
     @classmethod
     def _coerce_opening_hours(cls, value):
+        return [] if value is None else value
+
+
+class Supplier(BaseModel):
+    """Supplier document with multiple store locations.
+
+    A supplier represents a retail brand (e.g. REWE, Aldi) and holds a list of
+    ``StoreLocation`` objects — one per physical store. This replaces the old
+    flat single-store design.
+
+    Legacy single-store data (flat address/contact/opening_hours fields as well
+    as ``store_name`` and ``region`` at the top level) is accepted via the
+    ``_coerce_legacy`` model validator and is automatically converted into a
+    single-entry ``locations`` list so existing callers keep working.
+    """
+
+    id: str = ""
+    supplier_id: str
+    brand: str
+    locations: List[StoreLocation] = Field(default_factory=list)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _coerce_legacy(cls, data):
+        """Accept the old flat single-store format and wrap it in a locations list.
+
+        If the incoming dict contains top-level address/store fields (the old
+        schema) but no ``locations`` key, the flat fields are converted into a
+        single ``StoreLocation`` and placed in ``locations``.
+        """
+        if not isinstance(data, dict):
+            return data
+        data = dict(data)
+
+        _OLD_STORE_FIELDS = {
+            "store_name", "region",
+            "address_street", "address_city", "address_postal_code",
+            "address_country", "address_geo_lat", "address_geo_lon",
+            "opening_hours", "contact_phone", "contact_website",
+            "address", "contact",
+        }
+
+        if "locations" not in data and any(f in data for f in _OLD_STORE_FIELDS):
+            store_id = data.get("supplier_id") or data.get("id") or "store-1"
+            loc: dict = {"store_id": store_id}
+            for field in _OLD_STORE_FIELDS - {"address", "contact"}:
+                if field in data:
+                    loc[field] = data.pop(field)
+            for nested in ("address", "contact"):
+                if nested in data:
+                    loc[nested] = data.pop(nested)
+            # store_name is required on StoreLocation — fall back to supplier brand
+            if not loc.get("store_name"):
+                loc["store_name"] = data.get("brand", store_id)
+            data["locations"] = [loc]
+
+        return data
+
+    @field_validator("locations", mode="before")
+    @classmethod
+    def _coerce_locations(cls, value):
         return [] if value is None else value
 
     @model_validator(mode="after")

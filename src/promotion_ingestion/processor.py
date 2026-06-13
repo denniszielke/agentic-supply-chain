@@ -1121,22 +1121,24 @@ class FlyerProcessor:
         if raw_supplier and isinstance(raw_supplier, dict):
             raw_supplier.setdefault("supplier_id", job.supplier_id)
             raw_supplier.setdefault("brand", job.supplier_id)
-            raw_supplier.setdefault("store_name", raw_supplier.get("brand", job.supplier_id))
-            raw_supplier.setdefault("address", {})
             # Capture document-level validity before stripping it from the Supplier model
             ov = raw_supplier.pop("offer_validity", None)
             if isinstance(ov, dict) and (ov.get("start_date") or ov.get("end_date")):
                 doc_offer_validity = ov
             # ingestion_metadata is no longer part of the Supplier model; discard if present
             raw_supplier.pop("ingestion_metadata", None)
-            addr = raw_supplier.get("address") or {}
-            raw_supplier["address"] = {
-                "street": addr.get("street", ""),
-                "city": addr.get("city", ""),
-                "postal_code": addr.get("postal_code", ""),
-                "country": addr.get("country", "DE"),
-                "geo": addr.get("geo"),
-            }
+            # If the LLM returned flat single-store fields, the Supplier model's
+            # _coerce_legacy validator will wrap them into a locations entry.
+            # We only pre-build a location dict when the LLM gave an explicit address block.
+            if "address" in raw_supplier and isinstance(raw_supplier["address"], dict):
+                addr = raw_supplier["address"]
+                raw_supplier["address"] = {
+                    "street": addr.get("street", ""),
+                    "city": addr.get("city", ""),
+                    "postal_code": addr.get("postal_code", ""),
+                    "country": addr.get("country", "DE"),
+                    "geo": addr.get("geo"),
+                }
             try:
                 supplier = Supplier.model_validate(raw_supplier)
             except Exception as exc:
@@ -1152,7 +1154,6 @@ class FlyerProcessor:
             supplier = Supplier(
                 supplier_id=job.supplier_id,
                 brand=job.supplier_id,
-                store_name=job.supplier_id,
             )
 
         # -- Categories --
