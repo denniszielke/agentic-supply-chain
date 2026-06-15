@@ -53,7 +53,7 @@ def build() -> str:
 
 
 def deploy(tag: str | None = None) -> None:
-    external = os.getenv("PRICING_MCP_EXTERNAL", "false").strip().lower() == "true"
+    external = os.getenv("PRICING_MCP_EXTERNAL", "true").strip().lower() == "true"
     env_vars = {
         "PRICING_MCP_HOST": "0.0.0.0",
         "PRICING_MCP_PORT": str(PORT),
@@ -69,6 +69,7 @@ def deploy(tag: str | None = None) -> None:
         external=external,
         env_vars=env_vars,
         tag=tag,
+        readiness_probe_path="/health",
     )
 
     if fqdn:

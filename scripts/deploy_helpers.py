@@ -113,6 +113,9 @@ def deploy_container_app(
     external: bool,
     env_vars: dict[str, str],
     tag: str | None = None,
+    readiness_probe_path: str = "",
+    min_replicas: int = 0,
+    max_replicas: int = 10,
 ) -> str:
     """Deploy a single Container App via ``app.bicep`` and return its FQDN.
 
@@ -132,21 +135,28 @@ def deploy_container_app(
         [{"name": k, "value": v} for k, v in env_vars.items() if v]
     )
 
+    params = [
+        f"name={app_name}",
+        f"containerAppsEnvironmentName={environment_name}",
+        f"containerRegistryName={_registry_name(registry)}",
+        f"identityName={identity_name}",
+        f"imageName={image_ref}",
+        f"targetPort={port}",
+        f"external={'true' if external else 'false'}",
+        f"envJson={env_json}",
+        f"minReplicas={min_replicas}",
+        f"maxReplicas={max_replicas}",
+    ]
+    if readiness_probe_path:
+        params.append(f"readinessProbePath={readiness_probe_path}")
+
     print(f"==> Deploying Container App '{app_name}' with image {image_ref}")
     subprocess.run(
         [
             "az", "deployment", "group", "create",
             "--resource-group", resource_group,
             "--template-file", str(app_bicep),
-            "--parameters",
-            f"name={app_name}",
-            f"containerAppsEnvironmentName={environment_name}",
-            f"containerRegistryName={_registry_name(registry)}",
-            f"identityName={identity_name}",
-            f"imageName={image_ref}",
-            f"targetPort={port}",
-            f"external={'true' if external else 'false'}",
-            f"envJson={env_json}",
+            "--parameters", *params,
         ],
         check=True,
     )

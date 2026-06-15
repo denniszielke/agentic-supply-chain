@@ -27,6 +27,8 @@ from pathlib import Path
 from typing import Any, Optional
 
 from mcp.server.fastmcp import FastMCP
+from starlette.requests import Request
+from starlette.responses import JSONResponse
 
 _DATA_FILE = Path(__file__).with_name("pricing_data.json")
 
@@ -110,6 +112,12 @@ mcp = FastMCP(
     host=os.getenv("PRICING_MCP_HOST", "127.0.0.1"),
     port=int(os.getenv("PRICING_MCP_PORT", "8091")),
 )
+
+
+@mcp.custom_route("/health", methods=["GET"])
+async def health_check(_: Request) -> JSONResponse:
+    """Readiness probe endpoint — returns 200 OK when the server is up."""
+    return JSONResponse({"status": "ok"})
 
 
 @mcp.tool()

@@ -22,6 +22,18 @@ param containerCpuCoreCount string = '1'
 @description('Memory allocated to a single container instance, e.g. 2.0Gi')
 param containerMemory string = '2.0Gi'
 
+@description('Minimum number of replicas (0 = scale to zero when idle)')
+param minReplicas int = 0
+
+@description('Maximum number of replicas for scale-out')
+param maxReplicas int = 2
+
+@description('Concurrent HTTP requests per replica before a new replica is added')
+param concurrentRequests string = '10'
+
+@description('HTTP path for the readiness probe. Leave empty to disable the probe.')
+param readinessProbePath string = ''
+
 var envVars = json(envJson)
 var acrPullRoleDefinitionId = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d')
 
@@ -85,8 +97,34 @@ resource app 'Microsoft.App/containerApps@2023-05-01' = {
             cpu: json(containerCpuCoreCount)
             memory: containerMemory
           }
+          probes: empty(readinessProbePath) ? [] : [
+            {
+              type: 'readiness'
+              httpGet: {
+                path: readinessProbePath
+                port: targetPort
+              }
+              initialDelaySeconds: 5
+              periodSeconds: 10
+              failureThreshold: 3
+            }
+          ]
         }
       ]
+      scale: {
+        minReplicas: minReplicas
+        maxReplicas: maxReplicas
+        rules: [
+          {
+            name: 'http-rule'
+            http: {
+              metadata: {
+                concurrentRequests: concurrentRequests
+              }
+            }
+          }
+        ]
+      }
     }
   }
 }
