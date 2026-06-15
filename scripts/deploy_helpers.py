@@ -64,7 +64,14 @@ def build_image(
         "linux/amd64",
     ]
     if dockerfile:
-        cmd += ["--file", dockerfile]
+        # Pass Dockerfile as a path relative to the context so az acr build
+        # resolves .dockerignore from the context root correctly.
+        dockerfile_path = Path(dockerfile)
+        try:
+            rel = dockerfile_path.relative_to(context_path)
+        except ValueError:
+            rel = dockerfile_path  # already relative or outside context
+        cmd += ["--file", str(rel)]
     cmd.append(str(context_path))
     subprocess.run(cmd, check=True)
     print(f"==> Built {image_tag} (also tagged :latest)")

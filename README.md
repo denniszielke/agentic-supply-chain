@@ -218,8 +218,9 @@ This step builds the container images in ACR and deploys each service as a Conta
 Uses `az acr build` to build directly in the cloud — no local Docker required.
 
 ```bash
+source <(azd env get-values | grep AZURE_ENV_NAME)
 # Reads AZURE_ENV_NAME to locate the ACR in rg-<AZURE_ENV_NAME>
-./scripts/build_containers.sh "${AZURE_ENV_NAME}"
+bash ./scripts/build_containers.sh "${AZURE_ENV_NAME}"
 ```
 
 The script prints the registry name and image tag on completion, e.g.:

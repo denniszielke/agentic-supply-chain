@@ -56,12 +56,6 @@ APP_ENV_VARS = {
 
 SERVICES = [
     {
-        "app_name": "shopping-chat",
-        "image": "shopping-chat",
-        "port": 8080,
-        "external": True,
-    },
-    {
         "app_name": "promotion-ingestion",
         "image": "promotion-ingestion",
         "port": 8081,

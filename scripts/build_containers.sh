@@ -56,7 +56,7 @@ echo "==> Using registry: ${ACR_NAME}, tag: ${IMAGE_TAG}"
 
 build_image() {
     local name="$1"
-    local dockerfile="$2"
+    local dockerfile="$2"   # relative to REPO_ROOT, e.g. src/pricing_mcp_server/Dockerfile
     echo "==> Building ${name}:${IMAGE_TAG} (and :latest) from ${dockerfile}"
     az acr build \
         --subscription "${AZURE_SUBSCRIPTION_ID}" \
@@ -64,14 +64,12 @@ build_image() {
         --image "${name}:${IMAGE_TAG}" \
         --image "${name}:latest" \
         --platform linux/amd64 \
-        --file "${REPO_ROOT}/${dockerfile}" \
+        --file "${dockerfile}" \
         "${REPO_ROOT}"
 }
 
-build_image "shopping-chat"       "src/shopping_chat/Dockerfile"
-build_image "promotion-ingestion" "src/promotion_ingestion/Dockerfile"
-build_image "shopping-agent"      "src/shopping_agent/Dockerfile"
 build_image "pricing-mcp-server"  "src/pricing_mcp_server/Dockerfile"
+build_image "shopping-agent"      "src/shopping_agent/Dockerfile"
 build_image "campaign-agent"      "src/campaign_agent/Dockerfile"
 
 echo "All images built successfully."
