@@ -250,7 +250,55 @@ Deploys `shopping-agent` and `campaign-agent` as Foundry hosted agents
 
 ---
 
-## 8. Run Services Locally
+## 8. Promotion Agent Pipeline (two discrete steps)
+
+A lightweight **prompt-based** agent that identifies product promotions and
+pricing details.  It reads the live retail-items AI Search index through a
+Foundry toolbox — no container image required.
+
+Run these in order. Each is independently re-runnable.
+
+### Step 1 — Register the promotion toolbox (AI Search → Foundry toolbox)
+
+```bash
+python -m scripts.register_promotion_toolbox
+```
+
+Required env vars:
+- `AZURE_AI_PROJECT_ENDPOINT`
+- `AZURE_SEARCH_CONNECTION_NAME` — name of the AI Search connection in your
+  Foundry project (Foundry → Settings → Connections).
+
+Key overrides:
+- `PROMOTION_TOOLBOX_NAME` — toolbox name (default: `promotion-tools`)
+- `AZURE_SEARCH_ITEM_INDEX_NAME` — index to search (default: `retail-items`)
+
+Prints the consumer endpoint:
+`{project}/toolboxes/promotion-tools/mcp?api-version=v1`
+
+### Step 2 — Deploy the promotion prompt agent
+
+```bash
+python -m scripts.deploy_promotion_agent
+```
+
+Key overrides:
+- `AZURE_AI_PROMOTION_AGENT_NAME` — agent name (default: `promotion-agent`)
+- `PROMOTION_TOOLBOX_NAME` — toolbox to connect (default: `promotion-tools`)
+- `PROMOTION_TOOLBOX_MCP_URL` — explicit toolbox MCP URL (optional override)
+- `PROMOTION_MCP_CONNECTION_ID` — Foundry connection ID (optional)
+- `AZURE_AI_MODEL_DEPLOYMENT_NAME` — model (default: `gpt-4.1-mini`)
+
+Prints the A2A card URL and base path:
+`{project}/agents/promotion-agent/endpoint/protocols/a2a/agentCard/v0.3`
+
+The agent supports **RESPONSES**, **A2A** and **INVOCATIONS** protocols.
+
+---
+
+## 9. Run Services Locally
+
+<!-- NOTE: sections 9-12 are renumbered; was 8-11 before Promotion Agent Pipeline was added -->
 
 ### Pricing MCP server
 ```bash
@@ -283,7 +331,7 @@ python -m src.shopping_agent.shopping_agent   # interactive REPL
 
 ---
 
-## 9. Cleanup
+## 10. Cleanup
 
 ### Delete search index data (keep schemas)
 ```bash
@@ -312,7 +360,7 @@ azd down
 
 ---
 
-## 10. Environment Variable Reference
+## 11. Environment Variable Reference
 
 All variables are written to `./.env` by `azd up`.
 
@@ -344,10 +392,15 @@ All variables are written to `./.env` by `azd up`.
 | `TOOLBOX_MCP_ENDPOINT` | manual | explicit toolbox MCP URL |
 | `AZURE_AI_CAMPAIGN_AGENT_NAME` | manual | default: `campaign-agent` |
 | `AZURE_AI_HOSTED_AGENT_NAME` | manual | default: `shopping-agent` |
+| `AZURE_SEARCH_CONNECTION_NAME` | manual | Foundry connection name for AI Search (promotion toolbox) |
+| `PROMOTION_TOOLBOX_NAME` | manual | default: `promotion-tools` |
+| `PROMOTION_TOOLBOX_MCP_URL` | manual | explicit promotion toolbox MCP URL (optional) |
+| `PROMOTION_MCP_CONNECTION_ID` | manual | Foundry connection ID for restricted toolbox (optional) |
+| `AZURE_AI_PROMOTION_AGENT_NAME` | manual | default: `promotion-agent` |
 
 ---
 
-## 11. Conventions
+## 12. Conventions
 
 - **No real retailer brand names** in `src/` or `scripts/`. Use `the retailer`,
   `competitor-a`, `Store A`, `Naturgut Bio`, etc. `data/` input files are exempt.

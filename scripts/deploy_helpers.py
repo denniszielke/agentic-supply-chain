@@ -8,9 +8,12 @@ from pathlib import Path
 
 from azure.ai.projects import AIProjectClient
 from azure.ai.projects.models import (
+    AgentCard,
+    AgentCardSkill,
     AgentEndpointConfig,
     AgentEndpointProtocol,
     AgentProtocol,
+    ContainerConfiguration,
     HostedAgentDefinition,
     ProtocolVersionRecord,
 )
@@ -75,7 +78,9 @@ def build_image(
     cmd.append(str(context_path))
     subprocess.run(cmd, check=True)
     print(f"==> Built {image_tag} (also tagged :latest)")
-    return image_tag
+    # Return the timestamp tag only (not the full ref) so callers can use it
+    # with deploy_container_app which constructs the full ref itself.
+    return build_tag
 
 
 def _registry_name(login_server: str) -> str:
@@ -157,7 +162,8 @@ def shared_agent_env(project_endpoint: str) -> dict[str, str]:
         "AZURE_SEARCH_CATEGORY_INDEX_NAME": os.getenv("AZURE_SEARCH_CATEGORY_INDEX_NAME", "retail-categories"),
         "AZURE_SEARCH_ITEM_INDEX_NAME": os.getenv("AZURE_SEARCH_ITEM_INDEX_NAME", "retail-items"),
         "AZURE_SEARCH_ADMIN_KEY": os.getenv("AZURE_SEARCH_ADMIN_KEY", ""),
-        "APPLICATIONINSIGHTS_CONNECTION_STRING": os.getenv("APPLICATIONINSIGHTS_CONNECTION_STRING", ""),
+        # APPLICATIONINSIGHTS_CONNECTION_STRING is reserved by the Foundry platform
+        # and must NOT be passed in environment_variables — the platform injects it.
         "AZURE_AI_PROJECT_ENDPOINT": project_endpoint,
         "AZURE_AI_PROJECT_ID": os.getenv("AZURE_AI_PROJECT_ID", ""),
         "AZURE_AI_PROJECT_NAME": os.getenv("AZURE_AI_PROJECT_NAME", ""),
@@ -178,11 +184,13 @@ def deploy_hosted_agent(
     project_endpoint: str,
     dockerfile_rel: str,
     extra_env: dict[str, str] | None = None,
+    agent_card: AgentCard | None = None,
 ) -> None:
     """Build the agent image and create/patch a Foundry hosted agent version."""
     source_path = Path(__file__).resolve().parents[1]
     dockerfile = str(source_path / dockerfile_rel)
-    image_tag = build_image(registry, agent_name, source_path, dockerfile=dockerfile)
+    build_tag = build_image(registry, agent_name, source_path, dockerfile=dockerfile)
+    full_image_ref = f"{registry}/{agent_name}:{build_tag}"
 
     env_vars = {**shared_agent_env(project_endpoint), **(extra_env or {})}
     env_vars = {k: v for k, v in env_vars.items() if v}
@@ -194,10 +202,10 @@ def deploy_hosted_agent(
         agent_name=agent_name,
         description=description,
         definition=HostedAgentDefinition(
-            container_protocol_versions=protocols,
+            protocol_versions=protocols,
             cpu="1",
             memory="2Gi",
-            image=image_tag,
+            container_configuration=ContainerConfiguration(image=full_image_ref),
             environment_variables=env_vars,
         ),
         metadata={"enableVnextExperience": "true"},
@@ -211,8 +219,12 @@ def deploy_hosted_agent(
             AgentEndpointProtocol.INVOCATIONS,
         ],
     )
-    client.beta.agents.patch_agent_details(
-        agent_name=agent_name,
-        agent_endpoint=endpoint_config,
-    )
+    patch_kwargs: dict = {"agent_name": agent_name, "agent_endpoint": endpoint_config}
+    if agent_card is not None:
+        patch_kwargs["agent_card"] = agent_card
+    client.beta.agents.patch_agent_details(**patch_kwargs)
+
+    if agent_card is not None:
+        a2a_base = f"{project_endpoint.rstrip('/')}/agents/{agent_name}/endpoint/protocols/a2a"
+        print(f"  A2A enabled — card: {a2a_base}/agentCard/v0.3")
     print(f"Hosted agent '{agent_name}' deployed from source.")

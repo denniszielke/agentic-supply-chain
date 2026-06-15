@@ -18,7 +18,33 @@ from __future__ import annotations
 
 import os
 
-from scripts.deploy_helpers import deploy_hosted_agent, get_client
+from scripts.deploy_helpers import AgentCard, AgentCardSkill, deploy_hosted_agent, get_client
+
+
+CAMPAIGN_AGENT_CARD = AgentCard(
+    version="1.0",
+    description=(
+        "Campaign planning agent for retail marketing teams. Reasons about margin "
+        "optimisation vs. competitor promotions, per product category and shopping persona."
+    ),
+    skills=[
+        AgentCardSkill(
+            id="margin-optimisation",
+            name="Margin Optimisation",
+            description="Analyse internal procurement cost and weekly volume forecasts to recommend margin-preserving promotion strategies.",
+        ),
+        AgentCardSkill(
+            id="competitor-analysis",
+            name="Competitor Promotion Analysis",
+            description="Compare current competitor promotions from the AI Search index and identify pricing gaps or opportunities.",
+        ),
+        AgentCardSkill(
+            id="persona-targeting",
+            name="Shopping Persona Targeting",
+            description="Tailor campaign recommendations to specific shopping personas (e.g. budget-conscious, premium-seeker).",
+        ),
+    ],
+)
 
 
 def deploy() -> None:
@@ -44,6 +70,7 @@ def deploy() -> None:
             "TOOLBOX_MCP_ENDPOINT": os.getenv("TOOLBOX_MCP_ENDPOINT", ""),
             "PRICING_MCP_URL": os.getenv("PRICING_MCP_URL", ""),
         },
+        agent_card=CAMPAIGN_AGENT_CARD,
     )
 
 

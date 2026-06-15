@@ -2,7 +2,50 @@ from __future__ import annotations
 
 import os
 
-from scripts.deploy_helpers import deploy_hosted_agent, get_client
+from scripts.deploy_helpers import AgentCard, AgentCardSkill, deploy_hosted_agent, get_client
+
+
+SHOPPING_AGENT_CARD = AgentCard(
+    version="1.0",
+    description="Shopping planner agent that optimises a shopping list across current supermarket promotions.",
+    skills=[
+        AgentCardSkill(
+            id="shopping-optimisation",
+            name="Shopping List Optimisation",
+            description="Find the best-value combination of stores and products for a given shopping list based on weekly promotions.",
+        ),
+        AgentCardSkill(
+            id="promotion-search",
+            name="Promotion Search",
+            description="Search current promotions across indexed suppliers for specific products or categories.",
+        ),
+    ],
+)
+
+CAMPAIGN_AGENT_CARD = AgentCard(
+    version="1.0",
+    description=(
+        "Campaign planning agent for retail marketing teams. Reasons about margin "
+        "optimisation vs. competitor promotions, per product category and shopping persona."
+    ),
+    skills=[
+        AgentCardSkill(
+            id="margin-optimisation",
+            name="Margin Optimisation",
+            description="Analyse internal procurement cost and weekly volume forecasts to recommend margin-preserving promotion strategies.",
+        ),
+        AgentCardSkill(
+            id="competitor-analysis",
+            name="Competitor Promotion Analysis",
+            description="Compare current competitor promotions from the AI Search index and identify pricing gaps or opportunities.",
+        ),
+        AgentCardSkill(
+            id="persona-targeting",
+            name="Shopping Persona Targeting",
+            description="Tailor campaign recommendations to specific shopping personas (e.g. budget-conscious, premium-seeker).",
+        ),
+    ],
+)
 
 
 def deploy() -> None:
@@ -25,12 +68,10 @@ def deploy() -> None:
         registry=registry,
         project_endpoint=project_endpoint,
         dockerfile_rel="src/shopping_agent/Dockerfile",
+        agent_card=SHOPPING_AGENT_CARD,
     )
 
-    # Campaign planning hosted agent. Consumes the pricing MCP server through a
-    # Foundry toolbox (PRICING_TOOLBOX_NAME); set TOOLBOX_MCP_ENDPOINT to override
-    # the derived toolbox URL, or PRICING_MCP_URL to call an MCP server directly.
-    # See scripts/deploy_campaign_agent.py to deploy this agent on its own.
+    # Campaign planning hosted agent.
     deploy_hosted_agent(
         client,
         agent_name=os.getenv("AZURE_AI_CAMPAIGN_AGENT_NAME", "campaign-agent"),
@@ -43,6 +84,7 @@ def deploy() -> None:
             "TOOLBOX_MCP_ENDPOINT": os.getenv("TOOLBOX_MCP_ENDPOINT", ""),
             "PRICING_MCP_URL": os.getenv("PRICING_MCP_URL", ""),
         },
+        agent_card=CAMPAIGN_AGENT_CARD,
     )
 
 
