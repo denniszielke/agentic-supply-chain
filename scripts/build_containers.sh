@@ -57,11 +57,12 @@ echo "==> Using registry: ${ACR_NAME}, tag: ${IMAGE_TAG}"
 build_image() {
     local name="$1"
     local dockerfile="$2"
-    echo "==> Building ${name}:${IMAGE_TAG} from ${dockerfile}"
+    echo "==> Building ${name}:${IMAGE_TAG} (and :latest) from ${dockerfile}"
     az acr build \
         --subscription "${AZURE_SUBSCRIPTION_ID}" \
         --registry "${ACR_NAME}" \
         --image "${name}:${IMAGE_TAG}" \
+        --image "${name}:latest" \
         --platform linux/amd64 \
         --file "${REPO_ROOT}/${dockerfile}" \
         "${REPO_ROOT}"

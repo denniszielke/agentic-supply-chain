@@ -41,9 +41,15 @@ def build_image(
     context_path: Path,
     dockerfile: str | None = None,
 ) -> str:
+    """Build an image in ACR with a timestamped tag **and** :latest.
+
+    Returns the fully-qualified timestamped image reference so callers can pin
+    the exact build when creating a hosted agent version.
+    """
     registry_name = registry.removesuffix(".azurecr.io")
     build_tag = datetime.now().strftime("%Y%m%d%H%M%S")
     image_tag = f"{registry}/{image_name}:{build_tag}"
+    latest_tag = f"{registry}/{image_name}:latest"
     cmd = [
         "az",
         "acr",
@@ -52,6 +58,8 @@ def build_image(
         registry_name,
         "--image",
         image_tag,
+        "--image",
+        latest_tag,
         "--platform",
         "linux/amd64",
     ]
@@ -59,6 +67,7 @@ def build_image(
         cmd += ["--file", dockerfile]
     cmd.append(str(context_path))
     subprocess.run(cmd, check=True)
+    print(f"==> Built {image_tag} (also tagged :latest)")
     return image_tag
 
 

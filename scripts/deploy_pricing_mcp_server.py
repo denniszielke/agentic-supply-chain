@@ -2,8 +2,15 @@
 
 Deploy the **pricing MCP server** as a Container App. This is the confidential
 internal pricing surface that the campaign planning agent reaches through a
-Foundry toolbox. Run it after ``azd up`` has provisioned the infrastructure and
-``scripts/build_containers.sh`` has pushed the ``pricing-mcp-server`` image.
+Foundry toolbox. Run it after ``azd up`` has provisioned the infrastructure.
+
+Usage::
+
+    # build the image in ACR, then deploy
+    python -m scripts.deploy_pricing_mcp_server --build
+
+    # deploy only (image already in ACR)
+    python -m scripts.deploy_pricing_mcp_server
 
 The next two steps are:
   2. ``scripts/register_pricing_toolbox.py`` — publish this server as a toolbox.
@@ -23,14 +30,29 @@ Environment variables (all populated automatically from ``.env`` after ``azd up`
 from __future__ import annotations
 
 import os
+import sys
+from pathlib import Path
 
-from scripts.deploy_helpers import deploy_container_app
+from scripts.deploy_helpers import build_image, deploy_container_app, get_env
 
 APP_NAME = os.getenv("PRICING_MCP_APP_NAME", "pricing-mcp-server")
 PORT = int(os.getenv("PRICING_MCP_PORT", "8091"))
+_DOCKERFILE = "src/pricing_mcp_server/Dockerfile"
 
 
-def deploy() -> None:
+def build() -> str:
+    """Build the pricing-mcp-server image in ACR (tagged with timestamp + :latest).
+
+    Returns the concrete image tag that was built so it can be passed straight
+    to the deploy step.
+    """
+    registry = get_env("AZURE_REGISTRY")
+    source_path = Path(__file__).resolve().parents[1]
+    dockerfile = str(source_path / _DOCKERFILE)
+    return build_image(registry, "pricing-mcp-server", source_path, dockerfile=dockerfile)
+
+
+def deploy(tag: str | None = None) -> None:
     external = os.getenv("PRICING_MCP_EXTERNAL", "false").strip().lower() == "true"
     env_vars = {
         "PRICING_MCP_HOST": "0.0.0.0",
@@ -46,6 +68,7 @@ def deploy() -> None:
         port=PORT,
         external=external,
         env_vars=env_vars,
+        tag=tag,
     )
 
     if fqdn:
@@ -61,4 +84,8 @@ def deploy() -> None:
 
 
 if __name__ == "__main__":
-    deploy()
+    do_build = "--build" in sys.argv
+    built_tag: str | None = None
+    if do_build:
+        built_tag = build()
+    deploy(tag=built_tag)

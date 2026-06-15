@@ -52,9 +52,13 @@ The Campaign Planning Agent connects to this URL via `MultiServerMCPClient`.
 ## Deploy to Azure Container Apps
 
 Deploy this server as an (internal by default) Container App — step 1 of the
-campaign-agent pipeline:
+campaign-agent pipeline.
 
 ```bash
+# Build the image in ACR, then deploy (recommended for first deploy or after code changes)
+python -m scripts.deploy_pricing_mcp_server --build
+
+# Deploy only — image already in ACR, uses :latest (or TAG env var)
 python -m scripts.deploy_pricing_mcp_server
 ```
 
