@@ -1,38 +1,42 @@
 # Flyer data — never needed inside a container image
-data/
+data
+data/**
 
 # Python build artefacts
-.venv/
-__pycache__/
+.venv
+.venv/**
+__pycache__
+**/__pycache__
 *.pyc
 *.pyo
 *.pyd
-.pytest_cache/
-.mypy_cache/
-.ruff_cache/
-*.egg-info/
-dist/
-build/
+.pytest_cache
+**/.pytest_cache
+.mypy_cache
+.ruff_cache
+*.egg-info
+dist
+build
 
 # Dev / CI
-.git/
-.github/
-.azure/
+.git
+.github
+.azure
 .env
 .env.*
 
 # Tests
-tests/
+tests
+tests/**
 
 # Docs / media
 *.md
-graphics.md
-full_narrative.md
-narrative.md
 
 # Infrastructure & deploy tooling — not needed at container runtime
-infra/
-scripts/
+infra
+infra/**
+scripts
+scripts/**
 
 # macOS metadata
 .DS_Store
