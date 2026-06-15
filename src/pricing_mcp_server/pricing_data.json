@@ -1,0 +1,81 @@
+{
+  "meta": {
+    "owner": "ALDI SÜD",
+    "currency": "EUR",
+    "classification": "internal-confidential",
+    "description": "Synthetic internal procurement, volume and margin master data for the campaign planning agent. All figures are fictional and for demonstration only. Margin is computed as shelf_price - procurement_cost - logistics_cost_per_unit.",
+    "forecast_horizon": "next promotion week",
+    "generated_for": "agentic-supply-chain demo"
+  },
+  "personas": [
+    {
+      "persona_id": "value-family",
+      "name": "Value-Driven Family",
+      "description": "Large weekly basket, highly price sensitive, buys staples in bulk and reacts strongly to discounts on meat, dairy, produce and household.",
+      "price_sensitivity": "high",
+      "elasticity_modifier": 1.3,
+      "category_affinity": ["milchprodukte-eier", "fleisch-wurst", "obst-gemuese", "haushalt-reinigung", "getraenke"]
+    },
+    {
+      "persona_id": "premium-foodie",
+      "name": "Premium Foodie",
+      "description": "Quality-led shopper, willing to pay for bio and origin, low price sensitivity on fresh categories, responsive to novelty and seasonal items.",
+      "price_sensitivity": "low",
+      "elasticity_modifier": 0.6,
+      "category_affinity": ["obst-gemuese", "fleisch-wurst", "milchprodukte-eier", "backwaren"]
+    },
+    {
+      "persona_id": "convenience-single",
+      "name": "Convenience Single",
+      "description": "Small frequent baskets, buys snacks, drinks and ready items, moderately price sensitive, strongly drawn to single-serve promotions.",
+      "price_sensitivity": "medium",
+      "elasticity_modifier": 1.0,
+      "category_affinity": ["suesswaren-snacks", "getraenke", "backwaren", "milchprodukte-eier"]
+    },
+    {
+      "persona_id": "pet-garden-enthusiast",
+      "name": "Pet & Garden Enthusiast",
+      "description": "Seasonal non-food shopper, buys pet supplies and garden goods, price sensitive on bulk non-food, plans purchases around seasonal campaigns.",
+      "price_sensitivity": "medium",
+      "elasticity_modifier": 0.9,
+      "category_affinity": ["haustierbedarf", "garten-pflanzen", "haushalt-reinigung", "nonfood-freizeit"]
+    }
+  ],
+  "products": [
+    {"sku": "AS-OG-001", "product_name": "Wassermelone lose", "category_id": "obst-gemuese", "own_brand": "ALDI Frische", "packaging_quantity": 1.0, "packaging_unit_type": "kilogramm", "procurement_cost_eur": 0.42, "logistics_cost_per_unit_eur": 0.08, "current_shelf_price_eur": 0.79, "expected_weekly_volume_units": 26000, "price_elasticity": -1.6, "shelf_life_days": 10, "promo_planned": true},
+    {"sku": "AS-OG-002", "product_name": "Stangenspargel 330g", "category_id": "obst-gemuese", "own_brand": "ALDI Frische", "packaging_quantity": 330.0, "packaging_unit_type": "gramm", "procurement_cost_eur": 0.74, "logistics_cost_per_unit_eur": 0.11, "current_shelf_price_eur": 1.29, "expected_weekly_volume_units": 14500, "price_elasticity": -1.2, "shelf_life_days": 6, "promo_planned": true},
+    {"sku": "AS-OG-003", "product_name": "Erdbeeren 500g Schale", "category_id": "obst-gemuese", "own_brand": "ALDI Frische", "packaging_quantity": 500.0, "packaging_unit_type": "gramm", "procurement_cost_eur": 1.18, "logistics_cost_per_unit_eur": 0.14, "current_shelf_price_eur": 1.99, "expected_weekly_volume_units": 21000, "price_elasticity": -1.8, "shelf_life_days": 4, "promo_planned": true},
+    {"sku": "AS-OG-004", "product_name": "Bananen lose", "category_id": "obst-gemuese", "own_brand": "ALDI Frische", "packaging_quantity": 1.0, "packaging_unit_type": "kilogramm", "procurement_cost_eur": 0.71, "logistics_cost_per_unit_eur": 0.09, "current_shelf_price_eur": 1.19, "expected_weekly_volume_units": 33000, "price_elasticity": -1.1, "shelf_life_days": 8, "promo_planned": false},
+    {"sku": "AS-OG-005", "product_name": "Snack-Tomaten 250g", "category_id": "obst-gemuese", "own_brand": "ALDI Frische", "packaging_quantity": 250.0, "packaging_unit_type": "gramm", "procurement_cost_eur": 0.66, "logistics_cost_per_unit_eur": 0.10, "current_shelf_price_eur": 1.09, "expected_weekly_volume_units": 12500, "price_elasticity": -1.3, "shelf_life_days": 7, "promo_planned": false},
+
+    {"sku": "AS-FW-001", "product_name": "Hähnchenbrustfilet 400g", "category_id": "fleisch-wurst", "own_brand": "Meine Metzgerei", "packaging_quantity": 400.0, "packaging_unit_type": "gramm", "procurement_cost_eur": 2.34, "logistics_cost_per_unit_eur": 0.22, "current_shelf_price_eur": 3.49, "expected_weekly_volume_units": 19500, "price_elasticity": -1.5, "shelf_life_days": 5, "promo_planned": true},
+    {"sku": "AS-FW-002", "product_name": "Rinderhackfleisch 500g", "category_id": "fleisch-wurst", "own_brand": "Meine Metzgerei", "packaging_quantity": 500.0, "packaging_unit_type": "gramm", "procurement_cost_eur": 2.71, "logistics_cost_per_unit_eur": 0.24, "current_shelf_price_eur": 3.99, "expected_weekly_volume_units": 17800, "price_elasticity": -1.4, "shelf_life_days": 4, "promo_planned": true},
+    {"sku": "AS-FW-003", "product_name": "Bratwurst 400g", "category_id": "fleisch-wurst", "own_brand": "Meine Metzgerei", "packaging_quantity": 400.0, "packaging_unit_type": "gramm", "procurement_cost_eur": 1.46, "logistics_cost_per_unit_eur": 0.16, "current_shelf_price_eur": 2.49, "expected_weekly_volume_units": 15200, "price_elasticity": -1.3, "shelf_life_days": 9, "promo_planned": false},
+    {"sku": "AS-FW-004", "product_name": "Salami Aufschnitt 100g", "category_id": "fleisch-wurst", "own_brand": "Meine Metzgerei", "packaging_quantity": 100.0, "packaging_unit_type": "gramm", "procurement_cost_eur": 0.83, "logistics_cost_per_unit_eur": 0.07, "current_shelf_price_eur": 1.39, "expected_weekly_volume_units": 13900, "price_elasticity": -1.0, "shelf_life_days": 18, "promo_planned": false},
+
+    {"sku": "AS-ME-001", "product_name": "Frischkäse 125g", "category_id": "milchprodukte-eier", "own_brand": "Milsani", "packaging_quantity": 125.0, "packaging_unit_type": "gramm", "procurement_cost_eur": 0.58, "logistics_cost_per_unit_eur": 0.06, "current_shelf_price_eur": 1.19, "expected_weekly_volume_units": 24500, "price_elasticity": -1.4, "shelf_life_days": 21, "promo_planned": true},
+    {"sku": "AS-ME-002", "product_name": "Naturjoghurt 500g", "category_id": "milchprodukte-eier", "own_brand": "Milsani", "packaging_quantity": 500.0, "packaging_unit_type": "gramm", "procurement_cost_eur": 0.41, "logistics_cost_per_unit_eur": 0.05, "current_shelf_price_eur": 0.79, "expected_weekly_volume_units": 28800, "price_elasticity": -1.2, "shelf_life_days": 24, "promo_planned": false},
+    {"sku": "AS-ME-003", "product_name": "Gouda jung 400g", "category_id": "milchprodukte-eier", "own_brand": "Milsani", "packaging_quantity": 400.0, "packaging_unit_type": "gramm", "procurement_cost_eur": 2.12, "logistics_cost_per_unit_eur": 0.13, "current_shelf_price_eur": 3.29, "expected_weekly_volume_units": 16400, "price_elasticity": -1.3, "shelf_life_days": 30, "promo_planned": true},
+    {"sku": "AS-ME-004", "product_name": "Eier Bodenhaltung 10er", "category_id": "milchprodukte-eier", "own_brand": "Milsani", "packaging_quantity": 10.0, "packaging_unit_type": "stueck", "procurement_cost_eur": 1.32, "logistics_cost_per_unit_eur": 0.10, "current_shelf_price_eur": 1.99, "expected_weekly_volume_units": 22100, "price_elasticity": -0.9, "shelf_life_days": 21, "promo_planned": false},
+    {"sku": "AS-ME-005", "product_name": "Deutsche Markenbutter 250g", "category_id": "milchprodukte-eier", "own_brand": "Milsani", "packaging_quantity": 250.0, "packaging_unit_type": "gramm", "procurement_cost_eur": 1.41, "logistics_cost_per_unit_eur": 0.07, "current_shelf_price_eur": 1.89, "expected_weekly_volume_units": 26700, "price_elasticity": -1.7, "shelf_life_days": 40, "promo_planned": true},
+
+    {"sku": "AS-BW-001", "product_name": "Frische Waffeln 12er", "category_id": "backwaren", "own_brand": "Bäcker Krücke", "packaging_quantity": 12.0, "packaging_unit_type": "stueck", "procurement_cost_eur": 1.04, "logistics_cost_per_unit_eur": 0.09, "current_shelf_price_eur": 1.99, "expected_weekly_volume_units": 11800, "price_elasticity": -1.1, "shelf_life_days": 14, "promo_planned": false},
+    {"sku": "AS-BW-002", "product_name": "Mehrkornbrötchen 6er", "category_id": "backwaren", "own_brand": "Bäcker Krücke", "packaging_quantity": 6.0, "packaging_unit_type": "stueck", "procurement_cost_eur": 0.52, "logistics_cost_per_unit_eur": 0.06, "current_shelf_price_eur": 0.99, "expected_weekly_volume_units": 18600, "price_elasticity": -1.0, "shelf_life_days": 3, "promo_planned": false},
+    {"sku": "AS-BW-003", "product_name": "Toastbrot 500g", "category_id": "backwaren", "own_brand": "Bäcker Krücke", "packaging_quantity": 500.0, "packaging_unit_type": "gramm", "procurement_cost_eur": 0.49, "logistics_cost_per_unit_eur": 0.05, "current_shelf_price_eur": 0.89, "expected_weekly_volume_units": 20400, "price_elasticity": -0.8, "shelf_life_days": 12, "promo_planned": false},
+
+    {"sku": "AS-SS-001", "product_name": "Erdnuss-Locken 175g", "category_id": "suesswaren-snacks", "own_brand": "Sun Snacks", "packaging_quantity": 175.0, "packaging_unit_type": "gramm", "procurement_cost_eur": 0.51, "logistics_cost_per_unit_eur": 0.06, "current_shelf_price_eur": 0.99, "expected_weekly_volume_units": 23900, "price_elasticity": -1.5, "shelf_life_days": 120, "promo_planned": true},
+    {"sku": "AS-SS-002", "product_name": "Schokoriegel Multipack 5x", "category_id": "suesswaren-snacks", "own_brand": "Choceur", "packaging_quantity": 5.0, "packaging_unit_type": "stueck", "procurement_cost_eur": 0.97, "logistics_cost_per_unit_eur": 0.08, "current_shelf_price_eur": 1.79, "expected_weekly_volume_units": 17200, "price_elasticity": -1.6, "shelf_life_days": 180, "promo_planned": true},
+    {"sku": "AS-SS-003", "product_name": "Kartoffelchips 175g", "category_id": "suesswaren-snacks", "own_brand": "Sun Snacks", "packaging_quantity": 175.0, "packaging_unit_type": "gramm", "procurement_cost_eur": 0.56, "logistics_cost_per_unit_eur": 0.06, "current_shelf_price_eur": 1.09, "expected_weekly_volume_units": 19800, "price_elasticity": -1.4, "shelf_life_days": 90, "promo_planned": false},
+
+    {"sku": "AS-GE-001", "product_name": "Mineralwasser 6x1L", "category_id": "getraenke", "own_brand": "Quellbrunn", "packaging_quantity": 6.0, "packaging_unit_type": "stueck", "procurement_cost_eur": 1.08, "logistics_cost_per_unit_eur": 0.34, "current_shelf_price_eur": 1.95, "expected_weekly_volume_units": 21500, "price_elasticity": -1.3, "shelf_life_days": 365, "promo_planned": false},
+    {"sku": "AS-GE-002", "product_name": "Apfelschorle 1.5L", "category_id": "getraenke", "own_brand": "Quellbrunn", "packaging_quantity": 1.5, "packaging_unit_type": "liter", "procurement_cost_eur": 0.44, "logistics_cost_per_unit_eur": 0.12, "current_shelf_price_eur": 0.85, "expected_weekly_volume_units": 16900, "price_elasticity": -1.2, "shelf_life_days": 270, "promo_planned": false},
+    {"sku": "AS-GE-003", "product_name": "Cola 1L", "category_id": "getraenke", "own_brand": "River", "packaging_quantity": 1.0, "packaging_unit_type": "liter", "procurement_cost_eur": 0.33, "logistics_cost_per_unit_eur": 0.09, "current_shelf_price_eur": 0.69, "expected_weekly_volume_units": 24300, "price_elasticity": -1.5, "shelf_life_days": 300, "promo_planned": true},
+
+    {"sku": "AS-HR-001", "product_name": "Handspülmittel 500ml", "category_id": "haushalt-reinigung", "own_brand": "Tandil", "packaging_quantity": 500.0, "packaging_unit_type": "milliliter", "procurement_cost_eur": 0.47, "logistics_cost_per_unit_eur": 0.07, "current_shelf_price_eur": 0.95, "expected_weekly_volume_units": 14200, "price_elasticity": -1.1, "shelf_life_days": 730, "promo_planned": false},
+    {"sku": "AS-HR-002", "product_name": "Waschmittel 20WL", "category_id": "haushalt-reinigung", "own_brand": "Tandil", "packaging_quantity": 20.0, "packaging_unit_type": "stueck", "procurement_cost_eur": 2.18, "logistics_cost_per_unit_eur": 0.19, "current_shelf_price_eur": 3.49, "expected_weekly_volume_units": 9800, "price_elasticity": -1.2, "shelf_life_days": 730, "promo_planned": true},
+
+    {"sku": "AS-HT-001", "product_name": "Katzenfutter 12x100g", "category_id": "haustierbedarf", "own_brand": "Cachet", "packaging_quantity": 12.0, "packaging_unit_type": "stueck", "procurement_cost_eur": 2.46, "logistics_cost_per_unit_eur": 0.21, "current_shelf_price_eur": 3.79, "expected_weekly_volume_units": 11300, "price_elasticity": -1.3, "shelf_life_days": 540, "promo_planned": true},
+
+    {"sku": "AS-GP-001", "product_name": "Blumenerde 40L", "category_id": "garten-pflanzen", "own_brand": "Gardenline", "packaging_quantity": 40.0, "packaging_unit_type": "liter", "procurement_cost_eur": 2.02, "logistics_cost_per_unit_eur": 0.41, "current_shelf_price_eur": 3.49, "expected_weekly_volume_units": 7600, "price_elasticity": -1.4, "shelf_life_days": 720, "promo_planned": true}
+  ]
+}

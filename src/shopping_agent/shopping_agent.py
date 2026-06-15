@@ -180,6 +180,27 @@ def _make_semantic_category_provider(
 # Agent runner
 # ---------------------------------------------------------------------------
 
+def make_providers(
+    credential: DefaultAzureCredential,
+) -> tuple[
+    AzureAISearchContextProvider,
+    AzureAISearchContextProvider,
+    AzureAISearchContextProvider,
+    OpenAIEmbeddingClient | None,
+]:
+    """Build the three Azure AI Search context providers and the embedding client.
+
+    Returns ``(kb_provider, item_provider, category_provider, embedding_client)``.
+    The providers are async context managers — the caller is responsible for
+    entering and exiting them (e.g. via ``async with`` or an ``AsyncExitStack``).
+    """
+    embedding_client = _make_embedding_client(credential)
+    kb_provider = _make_agentic_provider(credential)
+    item_provider = _make_semantic_item_provider(credential, embedding_client)
+    category_provider = _make_semantic_category_provider(credential, embedding_client)
+    return kb_provider, item_provider, category_provider, embedding_client
+
+
 async def run_agent(user_input: str, stream: bool = True) -> str:
     """Run one agent turn and return the complete response text.
 
@@ -189,11 +210,7 @@ async def run_agent(user_input: str, stream: bool = True) -> str:
     - semantic_categories (semantic, hybrid) — category / alternative lookup
     """
     credential = DefaultAzureCredential()
-    embedding_client = _make_embedding_client(credential)
-
-    kb_provider = _make_agentic_provider(credential)
-    item_provider = _make_semantic_item_provider(credential, embedding_client)
-    category_provider = _make_semantic_category_provider(credential, embedding_client)
+    kb_provider, item_provider, category_provider, embedding_client = make_providers(credential)
 
     try:
         async with (

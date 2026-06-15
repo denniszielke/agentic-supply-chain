@@ -1,11 +1,13 @@
 FROM python:3.13-slim
 WORKDIR /app
-COPY ./src/shopping_agent/requirements.txt /tmp/requirements.txt
+COPY ./src/pricing_mcp_server/requirements.txt /tmp/requirements.txt
 RUN if [ -f /tmp/requirements.txt ]; then \
         pip install --no-cache-dir -r /tmp/requirements.txt; \
     else \
         echo "No requirements.txt found"; \
     fi
 COPY ./src /app/src
-EXPOSE 8090
-CMD ["python", "-m", "src.shopping_agent.server"]
+ENV PRICING_MCP_HOST=0.0.0.0
+ENV PRICING_MCP_PORT=8091
+EXPOSE 8091
+CMD ["python", "-m", "src.pricing_mcp_server.server"]

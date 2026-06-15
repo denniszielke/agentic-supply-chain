@@ -516,7 +516,7 @@ class SearchIndexPusher:
         for cat, vec in zip(categories, vectors):
             vq = VectorizedQuery(
                 vector=vec,
-                k_nearest_neighbors=1,
+                k=1,
                 fields="embedding",
             )
             try:
@@ -599,7 +599,7 @@ class SearchIndexPusher:
         for cat_id, vec in zip(unconfirmed_cat_ids, vectors):
             vq = VectorizedQuery(
                 vector=vec,
-                k_nearest_neighbors=1,
+                k=1,
                 fields="embedding",
             )
             try:

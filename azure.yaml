@@ -12,7 +12,7 @@ hooks:
     - shell: sh
       run: cp .azure/$AZURE_ENV_NAME/.env ./
     - shell: sh
-      run: bash scripts/build_containers.sh $AZURE_ENV_NAME latest
+      run: bash scripts/build_containers.sh $AZURE_ENV_NAME latest --deploy
     # - shell: sh
     #   run: python -m pip install -q -r scripts/requirements-hosted-agents.txt
     # - shell: sh

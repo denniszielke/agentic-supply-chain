@@ -2,7 +2,10 @@
 
 Environment variables required:
   AZURE_SEARCH_ENDPOINT   - e.g. https://<service>.search.windows.net
-  AZURE_SEARCH_ADMIN_KEY  - admin API key
+
+Optional:
+  AZURE_SEARCH_ADMIN_KEY  - admin API key. When omitted, DefaultAzureCredential
+                            is used to obtain an AAD bearer token.
 """
 from __future__ import annotations
 
@@ -12,13 +15,27 @@ import sys
 from pathlib import Path
 
 import requests
+from azure.identity import DefaultAzureCredential
+
+SEARCH_SCOPE = "https://search.azure.com/.default"
+
+
+def _auth_headers() -> dict[str, str]:
+    """Return request headers using an admin key when available, otherwise an AAD token."""
+    headers: dict[str, str] = {}
+    api_key = os.getenv("AZURE_SEARCH_ADMIN_KEY", "").strip()
+    if api_key:
+        headers["api-key"] = api_key
+    else:
+        token = DefaultAzureCredential().get_token(SEARCH_SCOPE).token
+        headers["Authorization"] = f"Bearer {token}"
+    return headers
 
 
 def delete_index(schema_path: Path) -> None:
     endpoint = os.getenv("AZURE_SEARCH_ENDPOINT")
-    api_key = os.getenv("AZURE_SEARCH_ADMIN_KEY")
-    if not endpoint or not api_key:
-        print("ERROR: AZURE_SEARCH_ENDPOINT and AZURE_SEARCH_ADMIN_KEY must be set.", file=sys.stderr)
+    if not endpoint:
+        print("ERROR: AZURE_SEARCH_ENDPOINT must be set.", file=sys.stderr)
         sys.exit(1)
 
     schema = json.loads(schema_path.read_text(encoding="utf-8"))
@@ -27,7 +44,7 @@ def delete_index(schema_path: Path) -> None:
 
     response = requests.delete(
         url,
-        headers={"api-key": api_key},
+        headers=_auth_headers(),
         timeout=30,
     )
     if response.status_code == 404:

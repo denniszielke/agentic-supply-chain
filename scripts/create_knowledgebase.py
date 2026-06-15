@@ -135,7 +135,7 @@ def create_or_update_knowledgebase(
         index_name=supplier_index_name,
         description="Retail supplier store locations, opening hours, regional coverage, and flyer validity windows.",
         source_data_fields=[
-            "id", "supplier_id", "brand", "locations",
+            "id", "supplier_id", "brand",
         ],
     )
     _upsert_knowledge_source(
