@@ -147,8 +147,8 @@ def convert_to_new_format(old_docs: List[dict]) -> List[Dict]:
     """Group old flat supplier documents by brand and merge into new-format docs.
 
     Multiple old documents that share the same ``brand`` value (e.g. several
-    REWE store flyers) are merged into a single new-format supplier document
-    with one ``StoreLocation`` per old document.
+    store flyers from the same chain) are merged into a single new-format
+    supplier document with one ``StoreLocation`` per old document.
 
     The new document ``id`` is derived from the *first* old document's
     ``supplier_id`` for that brand group (or from the brand slug when no

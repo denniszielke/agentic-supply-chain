@@ -1,6 +1,6 @@
 """Internal pricing MCP server for the campaign planning agent.
 
-Exposes ALDI SÜD's *internal* procurement costs, weekly volume forecasts and
+Exposes the retailer's *internal* procurement costs, weekly volume forecasts and
 margin calculations over the Model Context Protocol so that the campaign
 planning agent can reason about retailer margin while it negotiates promotions
 against competitor flyer data.
@@ -101,7 +101,7 @@ def _match_product(query: str) -> Optional[dict[str, Any]]:
 mcp = FastMCP(
     name="pricing",
     instructions=(
-        "Internal ALDI SÜD pricing, volume and margin master data. Use these "
+        "Internal retailer pricing, volume and margin master data. Use these "
         "tools to retrieve procurement cost, forecast weekly volume, compute "
         "gross margin and simulate price changes when planning promotions. "
         "All monetary values are in EUR. This data is confidential and "

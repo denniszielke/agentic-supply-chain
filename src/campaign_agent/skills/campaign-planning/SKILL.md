@@ -11,7 +11,7 @@ each targeted at a persona and justified by competitor and margin evidence.
 
 ## When to use
 - "Plan next week's campaign / flyer for category X"
-- "Which products should we promote against ALDI Nord / REWE / Lidl?"
+- "Which products should we promote against competing discounters?"
 - "Design a 3-week promotion calendar for the summer"
 
 ## Inputs you must gather first

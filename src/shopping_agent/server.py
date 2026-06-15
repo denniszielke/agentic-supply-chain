@@ -108,7 +108,7 @@ class ShoppingListItem(BaseModel):
 class SelectedSupplier(BaseModel):
     """A store included in the optimised tour."""
 
-    brand: str = Field(description="Retailer brand, e.g. 'ALDI SÜD'.")
+    brand: str = Field(description="Retailer brand, e.g. 'Store A'.")
     store_name: Optional[str] = Field(default=None, description="Specific store name.")
     region: Optional[str] = Field(default=None, description="City / region of the store.")
     item_count: int = Field(default=0, description="Number of list items covered at this store.")
@@ -156,7 +156,7 @@ def _search_credential():
 
 
 async def _resolve_supplier_id(supplier: str) -> Optional[str]:
-    """Map a retailer brand or id (e.g. 'ALDI SÜD') to its supplier_id ('aldi-sued')."""
+    """Map a retailer brand or id (e.g. 'Store A') to its supplier_id ('store-a')."""
     async with SearchClient(
         endpoint=_SEARCH_ENDPOINT,
         index_name=_SUPPLIER_INDEX,
@@ -183,11 +183,11 @@ async def get_supplier_discounts(
     """Retrieve the most heavily discounted products currently on offer at ONE specific supplier.
 
     Use this whenever the shopper asks what is especially cheap / on sale / the
-    best deals at a named store (e.g. "Was ist gerade bei ALDI SÜD besonders
+    best deals at a named store (e.g. "Was ist gerade bei Store A besonders
     günstig?"). Returns offers sorted by discount, highest first.
 
     Args:
-        supplier: Retailer brand or id, e.g. 'ALDI SÜD', 'REWE', 'Lidl', 'rewe'.
+        supplier: Retailer brand or id, e.g. 'Store A', 'Store B', 'store-a'.
         min_discount_percentage: Only return offers with at least this discount (default 20%).
         top: Maximum number of offers to return (default 15).
     """

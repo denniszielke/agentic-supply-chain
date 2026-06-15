@@ -383,9 +383,9 @@ Respond with a structured shopping-tour plan. Always include all four sections.
 ### Availability overview
 | Product requested | Status | Best match found | Supplier |
 |-------------------|--------|-----------------|----------|
-| Milch 1l          | ✅ Now  | Vollmilch 3.5%  | ALDI SÜD |
-| Lachs             | ✅ Now  | Lachsfilet 400g | REWE     |
-| Thunfisch Dose    | ⏳ Soon | —               | Lidl (+3 days) |
+| Milch 1l          | ✅ Now  | Vollmilch 3.5%  | Store A |
+| Lachs             | ✅ Now  | Lachsfilet 400g | Store B     |
+| Thunfisch Dose    | ⏳ Soon | —               | Store C (+3 days) |
 | Artischocken      | ✗ None | —               | —        |
 
 ---
@@ -396,9 +396,9 @@ For each product with ≥ 2 candidates:
 **[Product name]**
 | Supplier | Brand | Pack | Shelf price | Unit price | Deal |
 |----------|-------|------|-------------|------------|------|
-| ALDI SÜD | ...   | ...  | €X.XX       | €X.XX/kg   | 🟢 -22% |
-| REWE     | ...   | ...  | €X.XX       | €X.XX/kg   | 🔴     |
-Cheapest: ALDI SÜD — €X.XX less per kg (↓ N %)
+| Store A | ...   | ...  | €X.XX       | €X.XX/kg   | 🟢 -22% |
+| Store B     | ...   | ...  | €X.XX       | €X.XX/kg   | 🔴     |
+Cheapest: Store A — €X.XX less per kg (↓ N %)
 
 ---
 
@@ -424,7 +424,7 @@ Opening hours: Mo–Sa X:XX–XX:XX
 | Product | Outlook | Detail |
 |---------|---------|--------|
 | Artischocken | ⏳ Wait ~2 weeks | Category appeared in promos every 14 days across 3 flyers |
-| Thunfisch    | 🗓️ Confirmed in 3 days | Lidl flyer starts [date] |
+| Thunfisch    | 🗓️ Confirmed in 3 days | Store C flyer starts [date] |
 | Lachs        | ⚠️ Expires [date] | Buy today or tomorrow |
 | Milch        | ✅ Buy now | No better deal evidence in next 4 weeks |
 ```
@@ -513,7 +513,7 @@ A tool named `get_supplier_discounts(supplier, min_discount_percentage, top)`
 returns the most heavily discounted products currently on offer at a single
 named retailer, sorted by discount (highest first). Call it whenever the shopper
 asks what is especially cheap, on sale, or the best deals at a specific store
-(e.g. "Was ist gerade bei ALDI SÜD besonders günstig?", "Show me the top REWE
+(e.g. "Was ist gerade bei Store A besonders günstig?", "Show me the top Store B
 deals"). Pass the retailer brand or id as `supplier`; raise or lower
 `min_discount_percentage` to match how aggressive the shopper wants the deals.
 Summarise the returned offers in the chat, and when the shopper adds any of them
@@ -537,7 +537,7 @@ Proactively scan the current promotions for non-food items that are unusual in
 a grocery flyer — toys, garden tools, clothing, household electronics, DIY.
 Surface the most eye-catching ones with price and supplier, mark them
 `status="non_food"` in the shopping list panel, and explain briefly why they
-stand out (e.g. "Lidl is selling a cordless drill this week — rare for a
+stand out (e.g. "A discounter is selling a cordless drill this week — rare for a
 discounter").
 
 ## Style in UI mode

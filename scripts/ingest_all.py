@@ -1,11 +1,11 @@
 """Ingest all PDF flyer files from data/files/ into Azure AI Search.
 
 Supplier IDs are derived from filenames using the project naming conventions:
-  AldiSued-Jun8.pdf     → aldi-sued
-  AldiNord-Jun15.pdf    → aldi-nord
-  EdekaPienka-Jun8.pdf  → edeka-pienka
-  kaufland-Jun11.pdf    → kaufland
-  rewe_2026_wk24_...    → rewe
+  StoreOne-Jun8.pdf     → store-one
+  StoreTwo-Jun15.pdf    → store-two
+  StoreThreeBranch-Jun8.pdf → store-three-branch
+  storefour-Jun11.pdf   → storefour
+  storefive_2026_wk24_...  → storefive
 
 Run from the repo root:
   python scripts/ingest_all.py [--files-dir data/files] [--output-dir data] [--dry-run]
@@ -44,7 +44,7 @@ _SUFFIX_PATTERN = re.compile(
 
 
 def _camel_to_kebab(text: str) -> str:
-    """Convert CamelCase text to kebab-case.  'AldiSued' → 'aldi-sued'."""
+    """Convert CamelCase text to kebab-case.  'StoreOne' → 'store-one'."""
     text = re.sub(r"([A-Z]+)([A-Z][a-z])", r"\1-\2", text)
     text = re.sub(r"([a-z\d])([A-Z])", r"\1-\2", text)
     return text.lower()
@@ -78,8 +78,8 @@ def supplier_id_from_filename(path: Path) -> str:
 def output_name_from_filename(path: Path) -> str:
     """Derive an output JSON filename from the PDF filename.
 
-    AldiSued-Jun8.pdf → aldi-sued-jun8.json
-    rewe_2026_wk24_840417_v1.pdf → rewe-2026-wk24.json  (keeps year+week only)
+    StoreOne-Jun8.pdf → store-one-jun8.json
+    storefive_2026_wk24_840417_v1.pdf → storefive-2026-wk24.json  (keeps year+week only)
     """
     stem = path.stem
     tokens = re.split(r"[-_]", stem)

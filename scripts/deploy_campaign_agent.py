@@ -1,3 +1,19 @@
+"""Step 3 of the campaign-agent deployment pipeline.
+
+Deploy the **campaign planning agent** as an Azure AI Foundry hosted agent
+(RESPONSES protocol). It consumes the pricing MCP server through the Foundry
+toolbox registered in step 2 (``PRICING_TOOLBOX_NAME``), so run this only after
+``scripts/deploy_pricing_mcp_server.py`` and ``scripts/register_pricing_toolbox.py``.
+
+Environment variables:
+  AZURE_AI_PROJECT_ENDPOINT           Foundry project endpoint (required).
+  AZURE_CONTAINER_REGISTRY_ENDPOINT   ACR login server for the agent image (required).
+  AZURE_AI_CAMPAIGN_AGENT_NAME        Hosted agent name (default: campaign-agent).
+  PRICING_TOOLBOX_NAME                Toolbox the agent consumes (default: pricing-tools).
+  TOOLBOX_MCP_ENDPOINT                Explicit toolbox MCP URL (optional override).
+  PRICING_MCP_URL                     Direct MCP URL to bypass the toolbox (optional).
+"""
+
 from __future__ import annotations
 
 import os
@@ -10,27 +26,12 @@ def deploy() -> None:
     registry = os.getenv("AZURE_CONTAINER_REGISTRY_ENDPOINT")
     if not project_endpoint or not registry:
         print(
-            "Skipping hosted agent deployment: AZURE_AI_PROJECT_ENDPOINT and "
+            "Skipping campaign agent deployment: AZURE_AI_PROJECT_ENDPOINT and "
             "AZURE_CONTAINER_REGISTRY_ENDPOINT are required."
         )
         return
 
     client = get_client()
-
-    # Shopping planner hosted agent.
-    deploy_hosted_agent(
-        client,
-        agent_name=os.getenv("AZURE_AI_HOSTED_AGENT_NAME", "shopping-agent"),
-        description="Shopping planner hosted agent",
-        registry=registry,
-        project_endpoint=project_endpoint,
-        dockerfile_rel="src/shopping_agent/Dockerfile",
-    )
-
-    # Campaign planning hosted agent. Consumes the pricing MCP server through a
-    # Foundry toolbox (PRICING_TOOLBOX_NAME); set TOOLBOX_MCP_ENDPOINT to override
-    # the derived toolbox URL, or PRICING_MCP_URL to call an MCP server directly.
-    # See scripts/deploy_campaign_agent.py to deploy this agent on its own.
     deploy_hosted_agent(
         client,
         agent_name=os.getenv("AZURE_AI_CAMPAIGN_AGENT_NAME", "campaign-agent"),

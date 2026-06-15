@@ -14,12 +14,12 @@
         "supplier_id": {
           "type": "string",
           "required": true,
-          "description": "Stable business identifier for the supplier, e.g. 'aldi-de-001'. Provided as input to the job; do not infer from images."
+          "description": "Stable business identifier for the supplier, e.g. 'retailer-de-001'. Provided as input to the job; do not infer from images."
         },
         "brand": {
           "type": "string",
           "required": true,
-          "description": "Retail brand name as printed on the flyer, e.g. 'ALDI SÜD', 'Lidl', 'REWE', 'Edeka'."
+          "description": "Retail brand name as printed on the flyer, e.g. 'a supermarket or discounter chain name'."
         },
         "store_name": {
           "type": "string",

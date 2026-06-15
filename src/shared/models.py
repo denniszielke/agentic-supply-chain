@@ -124,7 +124,7 @@ class StoreLocation(BaseModel):
 class Supplier(BaseModel):
     """Supplier document with multiple store locations.
 
-    A supplier represents a retail brand (e.g. REWE, Aldi) and holds a list of
+    A supplier represents a retail brand (e.g. a supermarket or discounter chain) and holds a list of
     ``StoreLocation`` objects — one per physical store. This replaces the old
     flat single-store design.
 

@@ -9,9 +9,9 @@ def seed_items() -> List[Item]:
     return [
         Item(
             item_id="i-1",
-            supplier_id="rewe-berlin-week-24",
+            supplier_id="competitor-a-week-24",
             name="Bio Avocado",
-            brand="REWE Bio",
+            brand="Naturgut Bio",
             description_text="Frische Bio Avocado aus Spanien, Klasse I",
             category_id="vegetables",
             pricing_current_price=1.29,
@@ -20,7 +20,7 @@ def seed_items() -> List[Item]:
         ),
         Item(
             item_id="i-2",
-            supplier_id="aldi-berlin-week-24",
+            supplier_id="competitor-b-week-24",
             name="Milk Vollmilch 3.5%",
             brand="Milsani",
             description_text="1L Vollmilch, regional",
@@ -31,7 +31,7 @@ def seed_items() -> List[Item]:
         ),
         Item(
             item_id="i-3",
-            supplier_id="aldi-berlin-week-24",
+            supplier_id="competitor-b-week-24",
             name="Rinderhack 500g",
             brand="Meine Metzgerei",
             description_text="Frisches Rinderhackfleisch 500g",

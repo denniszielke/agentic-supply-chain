@@ -7,4 +7,6 @@ RUN if [ -f /tmp/requirements.txt ]; then \
         echo "No requirements.txt found"; \
     fi
 COPY ./src /app/src
+ENV PORT=8088
+EXPOSE 8088
 CMD ["python", "-m", "src.campaign_agent.agent"]

@@ -11,6 +11,8 @@ An agentic scenario that solves **supplier optimization for retail shopping**. W
 | **shopping_chat** | `src/shopping_chat` | Containerized MCP app + interactive browser UI for product search, recommendations, and supplier inventory |
 | **promotion_ingestion** | `src/promotion_ingestion` | Container job that downloads and indexes promotional flyers (PDF, images, websites) into Azure AI Search |
 | **shopping_agent** | `src/shopping_agent` | Hosted agent with A2A-style HTTP API for shopping list optimization across current promotions |
+| **campaign_agent** | `src/campaign_agent` | Foundry **hosted agent** for the retail marketing team: reasons about margin optimization vs. competitor promotions, per category and shopping persona; consumes internal pricing via a Foundry toolbox |
+| **pricing_mcp_server** | `src/pricing_mcp_server` | MCP server exposing internal pricing data (procurement cost, weekly volume forecasts, margin), published as a Foundry toolbox and consumed by the campaign agent |
 | **shared** | `src/shared` | Shared Pydantic data models (`Supplier`, `Category`, `Item`), shopping planner logic, and seed data |
 | **infra** | `infra` | Bicep templates for Azure deployment and AI Search vector schema |
 | **scripts** | `scripts` | Deployment, index, container build and lifecycle scripts |
@@ -53,7 +55,9 @@ agentic-supply-chain/
 │   │   └── seed_data.py          # Local dev seed data
 │   ├── shopping_chat/            # MCP app + UI  →  see src/shopping_chat/README.md
 │   ├── promotion_ingestion/      # Flyer processor  →  see src/promotion_ingestion/README.md
-│   └── shopping_agent/           # A2A planning agent  →  see src/shopping_agent/README.md
+│   ├── shopping_agent/           # A2A planning agent  →  see src/shopping_agent/README.md
+│   ├── pricing_mcp_server/       # Internal pricing MCP server  →  see src/pricing_mcp_server/README.md
+│   └── campaign_agent/           # Campaign planning hosted agent  →  see src/campaign_agent/README.md
 ├── scripts/
 │   ├── build_containers.sh       # Build all images via az acr build
 │   ├── create_search_index.py    # Create / update the three Azure AI Search indexes
@@ -62,8 +66,11 @@ agentic-supply-chain/
 │   ├── map_items_to_category.py  # Assign uncategorized items to categories via vector search
 │   ├── ingest_all.py             # Bulk-ingest every PDF in data/files/ into AI Search
 │   ├── deploy_assets.py          # Runs create_search_index + create_knowledgebase (postprovision hook)
-│   ├── deploy_agents.py          # Deploy Container Apps via app.bicep
-│   ├── deploy_hosted_agents.py   # Deploy the shopping agent as a Foundry hosted agent
+│   ├── deploy_agents.py          # Deploy core Container Apps via app.bicep
+│   ├── deploy_pricing_mcp_server.py # Step 1: deploy the pricing MCP server Container App
+│   ├── register_pricing_toolbox.py  # Step 2: register the pricing MCP server as a Foundry toolbox
+│   ├── deploy_campaign_agent.py     # Step 3: deploy the campaign agent as a Foundry hosted agent
+│   ├── deploy_hosted_agents.py   # Deploy the shopping and campaign agents as Foundry hosted agents
 │   ├── deploy_helpers.py         # Shared image-build / Foundry client helpers
 │   ├── delete_index.py           # Delete an Azure AI Search index (schema + data)
 │   ├── delete_index_data.py      # Delete all documents but keep index schemas
@@ -105,9 +112,19 @@ All scripts read configuration from `./.env` (written by `azd up`). Run them fro
 | Script | Purpose |
 |---|---|
 | `scripts/build_containers.sh <AZURE_ENV_NAME> [TAG]` | Build all service images in ACR (no local Docker) |
-| `scripts/deploy_agents.py` | Deploy `shopping-chat`, `promotion-ingestion`, `shopping-agent` as Container Apps; optionally a hosted agent |
-| `scripts/deploy_hosted_agents.py` | Deploy the shopping agent as a Foundry hosted agent |
+| `scripts/deploy_agents.py` | Deploy `shopping-chat`, `promotion-ingestion`, `shopping-agent` as Container Apps; optionally hosted agents |
+| `scripts/deploy_hosted_agents.py` | Deploy the shopping and campaign agents as Foundry hosted agents |
 | `scripts/deploy_helpers.py` | Shared helpers for image builds and the Foundry client (imported, not run directly) |
+
+#### Campaign-agent pipeline (three discrete steps)
+
+The pricing MCP server, its toolbox registration, and the hosted campaign agent are deployed as three explicit, independently runnable steps:
+
+| Step | Script | Purpose |
+|---|---|---|
+| 1 | `python -m scripts.deploy_pricing_mcp_server` | Deploy the pricing MCP server as a (by default internal) Container App and print its `…/mcp` URL |
+| 2 | `python -m scripts.register_pricing_toolbox` | Register the deployed MCP server as a Foundry toolbox (`pricing-tools`); derives the URL from the Container App FQDN, or set `PRICING_MCP_URL` |
+| 3 | `python -m scripts.deploy_campaign_agent` | Deploy the campaign planning agent as a Foundry hosted agent that consumes the toolbox |
 
 ### Cleanup
 
@@ -219,7 +236,7 @@ export TAG=0608120000
 
 ### 2b. Deploy Container Apps
 
-Deploys (or re-deploys) `shopping-chat`, `promotion-ingestion`, and `shopping-agent` using `infra/core/host/app.bicep` via `az deployment group create`. Each app is assigned the shared user-managed identity for ACR pull access.
+Deploys (or re-deploys) `shopping-chat`, `promotion-ingestion`, and `shopping-agent` using `infra/core/host/app.bicep` via `az deployment group create`. Each app is assigned the shared user-managed identity for ACR pull access. The pricing MCP server and campaign agent are deployed separately in step 2d.
 
 ```bash
 # All variables are sourced from .env (written by azd) — set TAG explicitly
@@ -227,6 +244,12 @@ export TAG=0608120000
 
 python scripts/deploy_agents.py
 ```
+
+The `pricing-mcp-server` is deployed as an **internal** Container App (not
+externally reachable) on port `8091`. The `campaign-agent` is a **Foundry hosted
+agent** (RESPONSES protocol) rather than a Container App. In Foundry it consumes
+the pricing server through a **toolbox** (`pricing-tools`) rather than a direct
+connection. These three pieces are deployed as discrete steps in 2d below.
 
 Required variables (all populated automatically from `.env` after `azd up`):
 
@@ -238,7 +261,29 @@ Required variables (all populated automatically from `.env` after `azd up`):
 | `AZURE_IDENTITY_NAME` | User-assigned managed identity name |
 | `TAG` | Image tag to deploy |
 
-If `AZURE_AI_PROJECT_ENDPOINT` and `AZURE_CONTAINER_REGISTRY_ENDPOINT` are also set, the script additionally deploys a hosted agent via `scripts/deploy_hosted_agents.py`.
+### 2d. Deploy the campaign-agent pipeline (three discrete steps)
+
+The pricing MCP server, its Foundry toolbox registration, and the hosted campaign
+agent are deployed as three explicit steps. Run them in order — each is
+independently re-runnable:
+
+```bash
+# Step 1 — deploy the pricing MCP server (internal Container App on port 8091)
+python -m scripts.deploy_pricing_mcp_server
+# prints the MCP URL, e.g. https://pricing-mcp-server.<env-default-domain>/mcp
+
+# Step 2 — register that MCP server as a Foundry toolbox (pricing-tools).
+# The URL is derived from the Container App FQDN (AZURE_RESOURCE_GROUP), or set
+# PRICING_MCP_URL explicitly to override it.
+python -m scripts.register_pricing_toolbox
+
+# Step 3 — deploy the campaign planning agent as a Foundry hosted agent.
+# It consumes the toolbox via PRICING_TOOLBOX_NAME (default: pricing-tools).
+python -m scripts.deploy_campaign_agent
+```
+
+`scripts/deploy_hosted_agents.py` remains available to deploy the shopping and
+campaign agents together; step 3 above is the campaign-agent-only equivalent.
 
 ### 2c. Ingest a promotional flyer
 
@@ -307,6 +352,55 @@ python -m src.shopping_agent.shopping_agent --query "Ich brauche Milch, Hackflei
 python -m src.shopping_agent.shopping_agent
 ```
 
+**Pricing MCP server:**
+
+The campaign agent reads internal pricing data through this MCP server, so start
+it first. It serves the streamable-HTTP MCP transport and loads its (synthetic)
+data from [`src/pricing_mcp_server/pricing_data.json`](src/pricing_mcp_server/pricing_data.json).
+
+```bash
+python -m src.pricing_mcp_server.server
+```
+
+Serves `http://127.0.0.1:8091/mcp`. Override the bind address with
+`PRICING_MCP_HOST` / `PRICING_MCP_PORT`.
+
+To deploy it to Azure Container Apps instead, run `python -m scripts.deploy_pricing_mcp_server`
+(step 1 of the [campaign-agent pipeline](#2d-deploy-the-campaign-agent-pipeline-three-discrete-steps)).
+
+**Campaign planning agent (Foundry hosted agent):**
+
+With the pricing MCP server running (above), start the campaign agent's RESPONSES
+server. Set `PRICING_MCP_URL` so it connects directly to the local MCP server and
+skips the Foundry toolbox. The agent joins competitor promotions from AI Search
+with internal pricing from the MCP server and reasons about margin per category
+and persona.
+
+```bash
+export AZURE_AI_PROJECT_ENDPOINT="https://<project>.services.ai.azure.com/api/projects/<name>"
+export AZURE_OPENAI_CHAT_DEPLOYMENT_NAME="gpt-4.1-mini"
+export AZURE_SEARCH_ENDPOINT="https://<search>.search.windows.net"
+export PRICING_MCP_URL="http://127.0.0.1:8091/mcp"
+python -m src.campaign_agent.agent
+```
+
+Serves the RESPONSES protocol on `PORT` (default `8088`). Without
+`PRICING_MCP_URL` the agent consumes pricing through the Foundry toolbox named by
+`PRICING_TOOLBOX_NAME` (default `pricing-tools`).
+
+| Variable | Description |
+|---|---|
+| `AZURE_AI_PROJECT_ENDPOINT` | Foundry project endpoint (required) |
+| `AZURE_OPENAI_CHAT_DEPLOYMENT_NAME` | Chat model deployment (default: `gpt-4.1-mini`) |
+| `AZURE_AI_MODEL_DEPLOYMENT_NAME` | Fallback model deployment (default: `gpt-4.1-mini`) |
+| `AZURE_SEARCH_ENDPOINT` | Competitor promotion index (required) |
+| `AZURE_SEARCH_ADMIN_KEY` | Search key; falls back to `DefaultAzureCredential` |
+| `AZURE_SEARCH_ITEM_INDEX_NAME` | Item index name (default: `retail-items`) |
+| `PRICING_TOOLBOX_NAME` | Foundry toolbox wrapping the pricing MCP server (default: `pricing-tools`) |
+| `TOOLBOX_MCP_ENDPOINT` | Explicit toolbox MCP URL (overrides the derived one) |
+| `PRICING_MCP_URL` | Direct pricing MCP URL for local dev (bypasses the toolbox) |
+| `PORT` | Hosted agent server port (default: `8088`) |
+
 ---
 
 ## Cleanup
@@ -351,3 +445,5 @@ python -m unittest discover -s tests -v
 - [`src/shopping_chat/README.md`](src/shopping_chat/README.md)
 - [`src/promotion_ingestion/README.md`](src/promotion_ingestion/README.md)
 - [`src/shopping_agent/README.md`](src/shopping_agent/README.md)
+- [`src/pricing_mcp_server/README.md`](src/pricing_mcp_server/README.md)
+- [`src/campaign_agent/README.md`](src/campaign_agent/README.md)
