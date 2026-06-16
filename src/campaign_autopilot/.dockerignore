@@ -1,0 +1,43 @@
+# Flyer data — never needed inside a container image
+data
+data/**
+
+# Python build artefacts
+.venv
+.venv/**
+__pycache__
+**/__pycache__
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache
+**/.pytest_cache
+.mypy_cache
+.ruff_cache
+*.egg-info
+dist
+build
+
+# Dev / CI
+.git
+.github
+.azure
+.env
+.env.*
+
+# Tests
+tests
+tests/**
+
+# Docs / media (the offline sample report is a source-tree / local-only artefact)
+*.md
+
+# Infrastructure & deploy tooling — not needed at container runtime
+infra
+infra/**
+scripts
+scripts/**
+
+# macOS metadata
+.DS_Store
+**/.DS_Store

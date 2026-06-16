@@ -1,0 +1,19 @@
+# Campaign Autopilot dependencies.
+#
+# Includes the Campaign Planning Agent's own dependencies, because the autopilot
+# imports and runs that agent in-process (see report.py). Keep these in sync with
+# src/campaign_agent/requirements.txt.
+agent-framework-core==1.8.1
+agent-framework-foundry==1.8.1
+agent-framework-foundry-hosting==1.0.0a260609
+mcp>=1.0.0
+azure-ai-projects==2.2.0
+azure-identity==1.25.3
+azure-search-documents==11.7.0b2
+httpx==0.28.1
+python-dotenv==1.2.2
+
+# Autopilot-specific: email delivery, Markdown rendering, optional local cron loop.
+azure-communication-email==1.0.0
+markdown==3.7
+croniter==3.0.3
