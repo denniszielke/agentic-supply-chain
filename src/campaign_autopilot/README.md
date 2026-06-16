@@ -12,6 +12,123 @@ It is **purely additive** — it imports and reuses `src/campaign_agent/agent.py
 rather than modifying it, so the agent and the autopilot can be developed and
 deployed independently.
 
+## Two automation approaches
+
+There are two ways to run this on a schedule. Pick based on what your Foundry
+project supports.
+
+| | **A. Foundry-native** (recommended) | **B. Portable fallback** |
+|---|---|---|
+| Schedule | **Foundry routine** (`scripts/register_campaign_routine.py`) | Azure Container Apps **Job** (`scripts/deploy_campaign_autopilot.py`) |
+| Email | Agent sends via **Work IQ Mail** (Microsoft 365 / Outlook) | This process sends via **ACS** or **SMTP** |
+| Who emails | the **agent itself** (a Work IQ tool) | the autopilot wrapper (`email_sender.py`) |
+| Best when | the project is in a routines region, **not VNet-restricted**, with M365 Copilot licences | Work IQ / routines preview isn't available to you (VNet, region, licensing) |
+
+> **Why both?** Dennis asked for the Foundry-native shape (routine + Work IQ
+> Mail) because that's how a Foundry-hosted agent should be automated. But both
+> Foundry routines **and** Work IQ are **preview** features with real constraints
+> (see [limitations](#preview-limitations--open-questions)). The ACA Job + ACS
+> path is kept as a portable fallback that works without those previews — and it
+> doubles as the way to demo the report offline.
+
+## Can we build this without access to the subscription?
+
+**Yes for the code; no for end-to-end validation.** All of this — the routine
+registration script, the Work IQ tool wiring, the bicep, the deploy scripts, the
+renderer and its tests — is written and unit-tested **without** any Azure
+subscription. What *requires* the subscription (so it's on the repo owner to run)
+is the actual deployment and a live test:
+
+- registering the routine against a real Foundry project,
+- creating the Work IQ connection + Entra admin consent and sending a real email,
+- confirming the project's region/VNet/licensing satisfy the preview
+  requirements.
+
+The offline path (`--dry-run --sample`) lets anyone preview the email formatting
+with no Azure at all.
+
+---
+
+## Approach A — Foundry-native (routine + Work IQ Mail)
+
+```
+┌──────────────────┐   cron    ┌───────────────────────────┐   Work IQ A2A   ┌────────────┐
+│ Foundry routine  │ ────────▶ │ Campaign Planning Agent   │ ──────────────▶ │ Outlook /  │
+│ schedule trigger │  Mon 06:00│  • produce briefing       │   (OBO user)    │ M365 Mail  │
+└──────────────────┘           │  • email it via Work IQ   │                 └─────┬──────┘
+                               └───────────────────────────┘                       ▼
+                                                                          📧 recipient inbox(es)
+```
+
+A Foundry **routine** triggers the agent on a schedule; the routine only
+*invokes* the agent, so the **agent itself** sends the email through the
+**Work IQ Mail** tool. No Container Apps Job, no ACS.
+
+### 1. Give the campaign agent the Work IQ Mail tool
+
+Work IQ connects a Foundry agent to Microsoft 365 over A2A, on-behalf-of the
+signed-in user. Add the tool to the campaign agent and tell it to email the
+finished briefing. `src/campaign_autopilot/workiq_email.py` provides both helpers:
+
+```python
+from src.campaign_autopilot.workiq_email import build_workiq_tool, augmented_instructions
+
+# when building the campaign agent (src/campaign_agent/agent.py):
+tools = [search_competitor_promotions, _pricing_tool, build_workiq_tool()]
+instructions = augmented_instructions(
+    CAMPAIGN_AGENT_SYSTEM_PROMPT,
+    recipients=["category-manager@aldi-sued.example"],
+    report_title="Weekly Competitor & Margin Briefing",
+)
+```
+
+This is the only change to the agent and it's opt-in (gated on
+`WORK_IQ_PROJECT_CONNECTION_ID`). Prereqs (subscription owner): a Work IQ project
+connection, Entra admin consent for `WorkIQAgent.Ask`, and an M365 Copilot
+licence for each recipient identity. See
+[Connect agents to Microsoft 365 with Work IQ](https://learn.microsoft.com/azure/foundry/agents/how-to/tools/work-iq).
+
+### 2. Register the routine
+
+```bash
+# create/update the weekly schedule (default: Mondays 06:00 UTC)
+python -m scripts.register_campaign_routine
+
+# fire it once now (don't wait for the schedule), then inspect runs
+python -m scripts.register_campaign_routine --test
+python -m scripts.register_campaign_routine --list-runs
+
+# pause / resume
+python -m scripts.register_campaign_routine --disable
+python -m scripts.register_campaign_routine --enable
+```
+
+Config: `CAMPAIGN_ROUTINE_NAME`, `AZURE_AI_CAMPAIGN_AGENT_NAME` (default
+`campaign-agent`), `CAMPAIGN_AUTOPILOT_SCHEDULE` (cron, default `0 6 * * 1`),
+`CAMPAIGN_ROUTINE_TIME_ZONE` (default `UTC`). Routines need
+`azure-ai-projects>=2.2.0` (already pinned) and are **preview**
+(`Foundry-Features: Routines=V1Preview`).
+
+### Preview limitations & open questions
+
+- **Routines are region-limited** in preview (East US, East US 2, West US,
+  West US 2, West Central US, North Central US, Sweden Central, Japan East at the
+  time of writing). Confirm your project's region first.
+- **Work IQ does not support VNet-restricted projects.** This repo's infra uses a
+  VNet, so the Foundry-native email path needs a non-VNet project (or use the
+  fallback).
+- **Unattended OBO.** Work IQ runs on-behalf-of the signed-in user; a *scheduled*
+  routine has no interactive user. Whether a routine-invoked agent can send Work
+  IQ Mail unattended must be validated against your tenant — this is the main
+  open question for the Foundry-native path. The fallback (ACS) has no such
+  dependency.
+
+---
+
+## Approach B — Portable fallback (Container Apps Job + ACS/SMTP)
+
+It is **purely additive** — imports and reuses `src/campaign_agent/agent.py`.
+
 ```
 ┌──────────────────────────┐     cron      ┌──────────────────────────────┐
 │ Azure Container Apps Job │ ─────────────▶ │ campaign_autopilot (--once)  │
@@ -49,15 +166,19 @@ managed identity and ACR as the other services.
 
 | File | Purpose |
 |---|---|
-| `autopilot.py` | Orchestrator + CLI entry point (`--once`, `--dry-run`, `--sample`, `--loop`) |
-| `report.py` | Runs the Campaign Planning Agent in-process and returns its Markdown |
+| `workiq_email.py` | **(A)** Work IQ Mail tool builder + email instruction for the agent |
+| `../../scripts/register_campaign_routine.py` | **(A)** Create/manage the Foundry routine (schedule) |
+| `autopilot.py` | **(B)** Orchestrator + CLI (`--once`, `--dry-run`, `--sample`, `--loop`) |
+| `report.py` | **(B)** Runs the Campaign Planning Agent in-process and returns its Markdown |
 | `email_renderer.py` | Markdown → styled HTML + plain-text email (pure, unit-tested) |
-| `email_sender.py` | Pluggable transport: `acs` / `smtp` / `file` |
+| `email_sender.py` | **(B)** Pluggable transport: `acs` / `smtp` / `file` |
 | `config.py` | Env-driven `AutopilotConfig` |
 | `sample_report.md` | Bundled sample output for fully offline demos/tests |
-| `Dockerfile` | Job image (runs `autopilot.py --once`) |
-| `../../infra/core/host/job.bicep` | Container Apps Job (schedule trigger) |
-| `../../scripts/deploy_campaign_autopilot.py` | Build image + deploy the job |
+| `Dockerfile` | **(B)** Job image (runs `autopilot.py --once`) |
+| `../../infra/core/host/job.bicep` | **(B)** Container Apps Job (schedule trigger) |
+| `../../scripts/deploy_campaign_autopilot.py` | **(B)** Build image + deploy the job |
+
+_(A) = Foundry-native approach · (B) = portable fallback._
 
 ---
 
