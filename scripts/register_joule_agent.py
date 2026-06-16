@@ -1,36 +1,46 @@
-"""Step 2 of the Joule-agent pipeline — wire the simulated SAP Joule agent into
-**Azure AI Foundry** so other Foundry agents can call it over **A2A**.
+"""Step 2 of the Joule-agent pipeline — register the simulated SAP Joule agent in
+**Azure AI Foundry** with an **agent identity blueprint**, and wire it for **A2A**.
 
-The agent itself runs on Azure Container Apps (step 1) and is **never hosted by
-Foundry**. This script follows the documented **A2A tool** pattern
-(https://learn.microsoft.com/azure/foundry/agents/how-to/tools/agent-to-agent):
-it creates a Foundry **prompt agent** whose only tool is an ``A2APreviewTool``
-pointing at the external Joule endpoint, so any Foundry agent (e.g. the Campaign
-Planning Agent) can reach Joule over A2A under policy — the same way the pricing
-MCP server is consumed through an ``MCPTool``.
+The agent runs on Azure Container Apps (step 1) and is **never hosted by Foundry**,
+yet it is registered in the Foundry control plane and — the key requirement — it
+**uses an agent identity blueprint** (Microsoft Entra Agent ID), so it gets a
+governed, auditable identity just like the in-Foundry agents.
 
-Per the docs the **recommended** way to point the tool at the endpoint is a
-Foundry project **connection** of category ``RemoteA2A`` (it stores the endpoint
-``target`` *and* the auth — including ``AgenticIdentity`` / Entra Agent ID
-passthrough). Pass the connection by name (``JOULE_A2A_CONNECTION_NAME``, resolved
-to its id at runtime) or by id (``JOULE_CONNECTION_ID``). When a ``RemoteA2A``
-connection is used the base URL comes from the connection, so ``JOULE_AGENT_URL``
-is only needed for non-``RemoteA2A`` connections or when no connection is set.
+What an agent identity blueprint is (see
+https://learn.microsoft.com/azure/foundry/agents/concepts/agent-identity and
+https://learn.microsoft.com/entra/agent-id/agent-blueprint): a Microsoft Entra ID
+object that governs a *class* of agent identities — it carries OAuth credentials
+(federated to a managed identity), enables Conditional Access / revoke / audit at
+scale, and (for agents that **receive incoming requests from other agents**, like
+Joule) an identifier URI + scope. You create one in the Entra admin center
+(**Entra ID → Agents → Agent blueprints → New**) or via Microsoft Graph
+(https://learn.microsoft.com/entra/agent-id/create-blueprint); record its
+``appId`` and pass it as ``JOULE_BLUEPRINT_ID``. This is **the central input** for
+the scenario.
 
-This is **public preview** (the ``a2a_preview`` tool). Run ``--dry-run`` first to
-print the exact payload.
+The script attaches that blueprint via ``create_version(blueprint_reference=
+ManagedAgentIdentityBlueprintReference(blueprint_id=...))`` and reaches the
+external endpoint with the documented **A2A tool** pattern
+(https://learn.microsoft.com/azure/foundry/agents/how-to/tools/agent-to-agent) —
+an ``A2APreviewTool`` bound, preferably, to a ``RemoteA2A`` project connection
+(``JOULE_A2A_CONNECTION_NAME``) that stores the endpoint target + auth (including
+``AgenticIdentity`` / Entra Agent ID passthrough). When a ``RemoteA2A`` connection
+is used the base URL comes from the connection, so ``JOULE_AGENT_URL`` is only
+needed without a connection.
 
-> NOTE — control-plane *asset* registration is a separate, portal-based step.
-> Registering Joule as a governed Control-Plane **asset** (Operate → Register
-> asset → Protocol = A2A) gives it a proxy URL, access control and observability,
-> and **requires an AI gateway (Azure API Management) on the Foundry resource**.
-> That flow is portal-driven and is *not* performed by this script — see
+The A2A tool is **public preview** (``a2a_preview``). Run ``--dry-run`` first.
+
+> NOTE — there is also a portal-only path to govern Joule as a control-plane
+> *asset* (Operate → Register asset → Protocol = A2A), which yields a proxy URL +
+> observability and **requires an AI gateway (Azure API Management) on the Foundry
+> resource**. That flow is portal-driven and not performed by this script — see
 > https://learn.microsoft.com/azure/foundry/control-plane/register-custom-agent.
-> The optional ``JOULE_BLUEPRINT_ID`` below attaches a managed agent identity
-> blueprint via the SDK; it is advanced/undocumented and off unless you set it.
 
 Environment variables:
   AZURE_AI_PROJECT_ENDPOINT     Foundry project endpoint (required for live runs).
+  JOULE_BLUEPRINT_ID            **Agent identity blueprint appId (Entra Agent ID).**
+                                The central identity input — create the blueprint in
+                                Entra (admin center or Graph) and pass its appId.
   JOULE_AGENT_NAME              Foundry agent name (default: joule-agent).
   JOULE_A2A_CONNECTION_NAME     Name of a RemoteA2A project connection (recommended;
                                 resolved to its id at runtime). See the A2A docs to
@@ -43,8 +53,6 @@ Environment variables:
   JOULE_AGENT_APP_NAME          Container App name to resolve the URL from
                                 (default: joule-agent).
   JOULE_AGENT_CARD_PATH         Agent-card path (default: /.well-known/agent-card.json).
-  JOULE_BLUEPRINT_ID            Managed agent identity blueprint id (Entra Agent ID).
-                                Advanced/undocumented — only sent when set.
   JOULE_PREVIEW_FEATURES        Foundry-Features opt-in header value for the preview
                                 (default: AgentEndpoints=V1Preview). Override to match
                                 what your tenant has enabled, e.g. ExternalAgents=V1Preview.
@@ -247,9 +255,11 @@ def deploy(dry_run: bool = False) -> None:
         return
     if blueprint_ref is None:
         print(
-            "\nNote: JOULE_BLUEPRINT_ID is not set — no managed agent identity "
-            "blueprint attached (advanced/undocumented). The A2A tool itself does "
-            "not require it; set it only if your project supports agent blueprints."
+            "\nWARNING: JOULE_BLUEPRINT_ID is not set — the agent identity blueprint "
+            "is the central requirement for this scenario. Create one in Entra "
+            "(Entra ID → Agents → Agent blueprints → New, or via Microsoft Graph: "
+            "https://learn.microsoft.com/entra/agent-id/create-blueprint), then pass "
+            "its appId as JOULE_BLUEPRINT_ID so the agent uses a governed identity."
         )
 
     create_kwargs: dict = {

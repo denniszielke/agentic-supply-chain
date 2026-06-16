@@ -110,45 +110,59 @@ python -m scripts.register_joule_agent             # live registration
 | `JOULE_CONNECTION_ID` | Explicit connection id (alternative to the name) | — |
 | `JOULE_AGENT_URL` | Public A2A base URL (only needed without a RemoteA2A connection) | derived from the ACA FQDN |
 | `JOULE_AGENT_CARD_PATH` | Agent-card path | `/.well-known/agent-card.json` |
-| `JOULE_BLUEPRINT_ID` | Managed agent identity blueprint id (Entra Agent ID) — advanced/undocumented | — |
+| `JOULE_BLUEPRINT_ID` | **Agent identity blueprint appId (Entra Agent ID)** — the central identity input | — |
 | `JOULE_PREVIEW_FEATURES` | `Foundry-Features` opt-in header for the preview | `AgentEndpoints=V1Preview` |
 | `AZURE_AI_MODEL_DEPLOYMENT_NAME` | Model for the proxy prompt agent | `gpt-4.1-mini` |
 
-## How this maps to the official Foundry docs (public preview)
+## The agent identity blueprint (the important part)
 
-Verified against Microsoft Learn (June 2026). There are **two distinct** ways the
-external Joule agent meets Foundry, and this repo covers both — but one of them is
-a **portal** step with its own prerequisite:
+Per Dennis's requirement, the externally-hosted Joule agent must **use an agent
+identity blueprint** — a [Microsoft Entra Agent ID](https://learn.microsoft.com/entra/agent-id/agent-blueprint)
+construct that gives a *class* of agents a governed, auditable identity (Conditional
+Access, revoke-at-scale, audit), even though the agent runs outside Foundry. See
+the [Foundry agent identity concept](https://learn.microsoft.com/azure/foundry/agents/concepts/agent-identity).
 
-1. **Make Joule callable from Foundry agents — the A2A *tool*** *(what
-   `register_joule_agent.py` does, SDK)*. Per
+Create the blueprint once and pass its `appId` as `JOULE_BLUEPRINT_ID`:
+
+1. **Entra admin center** — Entra ID → **Agents → Agent blueprints → New agent
+   blueprint**, set a name + sponsor/owner. Or use **Microsoft Graph / PowerShell**
+   ([create-blueprint](https://learn.microsoft.com/entra/agent-id/create-blueprint)).
+2. Because Joule **receives incoming A2A requests**, configure an **identifier URI
+   and scope** on the blueprint (Graph/PowerShell), and a **federated credential**
+   to the project managed identity (recommended for production).
+3. Record the blueprint **`appId`** → `JOULE_BLUEPRINT_ID`.
+
+`register_joule_agent.py` then attaches it via `create_version(blueprint_reference=
+ManagedAgentIdentityBlueprintReference(blueprint_id=<appId>))`.
+
+## How this maps to the official Foundry docs (verified June 2026)
+
+The external Joule agent meets Foundry in two complementary ways:
+
+1. **Identity — the agent identity blueprint** *(above; the central requirement)*.
+2. **Reachability — the A2A *tool***. Per
    [Connect to an A2A endpoint](https://learn.microsoft.com/azure/foundry/agents/how-to/tools/agent-to-agent),
-   you create a prompt agent whose tool is an `A2APreviewTool` pointing at Joule.
-   The **recommended** binding is a project **connection** of category `RemoteA2A`
-   (it stores the endpoint `target` *and* the auth — including `AgenticIdentity`
-   / **Entra Agent ID** passthrough). Create it once in the portal
+   `register_joule_agent.py` creates a prompt agent whose tool is an `A2APreviewTool`
+   pointing at Joule, bound (recommended) to a project **connection** of category
+   `RemoteA2A` that stores the endpoint `target` + auth (including `AgenticIdentity`
+   / Entra Agent ID passthrough). Create it in the portal
    (**Tools → Connect tool → Custom → Agent2Agent (A2A)**) or via the ARM REST PUT
    in the doc, then pass `JOULE_A2A_CONNECTION_NAME`.
 
-2. **Govern Joule as a control-plane *asset*** *(portal, needs an AI gateway)*. Per
-   [Register a custom agent in Foundry Control Plane](https://learn.microsoft.com/azure/foundry/control-plane/register-custom-agent),
-   you register the externally-hosted A2A agent via **Operate → Register asset**
-   (Protocol = **A2A**, card path `/.well-known/agent-card.json`). Foundry then
-   issues a **proxy URL** (via Azure API Management) and gives you access control +
-   observability. **Prerequisite: an AI gateway (Azure API Management) must be
-   enabled on the Foundry resource.** This step is **portal-driven** and is *not*
-   performed by the script.
+Optionally, govern Joule as a control-plane **asset** (proxy URL + observability)
+via [Register a custom agent](https://learn.microsoft.com/azure/foundry/control-plane/register-custom-agent)
+— a **portal** step that **requires an AI gateway (Azure API Management)** on the
+Foundry resource, and is *not* performed by the script.
 
 The Joule **server** matches the docs' "Option 2: build a custom A2A server using
 the official A2A SDK", serving its card at `/.well-known/agent-card.json`.
 
-> **Preview / availability.** The A2A tool is **public preview** (the `a2a_preview`
-> tool type) — broadly available but with no SLA and possible region limits;
-> confirm against your project. The `JOULE_BLUEPRINT_ID` (managed identity
-> blueprint) path is advanced/undocumented and only sent when set. Foundry RBAC was
-> recently renamed — you need **Contributor/Owner** on the Foundry resource plus
-> **Foundry User**. Run `register_joule_agent --dry-run` first to inspect the
-> payload.
+> **Preview / availability.** The A2A tool is **public preview** (`a2a_preview`) —
+> broadly available but no SLA and possible region limits; confirm against your
+> project. Foundry RBAC was recently renamed — you need **Contributor/Owner** on the
+> Foundry resource plus **Foundry User**; creating the blueprint needs Entra **Agent
+> ID Developer/Administrator** (or Application Administrator). Run
+> `register_joule_agent --dry-run` first to inspect the payload.
 
 ## Key files
 

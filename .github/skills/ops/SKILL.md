@@ -345,7 +345,7 @@ Key overrides:
 - `JOULE_A2A_CONNECTION_NAME` — RemoteA2A connection name (recommended)
 - `JOULE_CONNECTION_ID` — explicit connection id (alternative to the name)
 - `JOULE_AGENT_URL` — explicit A2A base URL (only without a RemoteA2A connection)
-- `JOULE_BLUEPRINT_ID` — managed agent identity blueprint id (Entra Agent ID); advanced/undocumented
+- `JOULE_BLUEPRINT_ID` — **agent identity blueprint appId (Entra Agent ID)** — the central identity input; create via Entra ID → Agents → Agent blueprints (or Graph)
 - `JOULE_AGENT_CARD_PATH` — agent-card path (default: `/.well-known/agent-card.json`)
 - `JOULE_PREVIEW_FEATURES` — `Foundry-Features` opt-in header (default: `AgentEndpoints=V1Preview`; try `ExternalAgents=V1Preview`)
 
@@ -476,7 +476,7 @@ All variables are written to `./.env` by `azd up`.
 | `JOULE_AGENT_NAME` | manual | control-plane agent name (default: `joule-agent`) |
 | `JOULE_A2A_CONNECTION_NAME` | manual | RemoteA2A project connection name (recommended) |
 | `JOULE_AGENT_URL` | manual | explicit A2A base URL (only without a RemoteA2A connection) |
-| `JOULE_BLUEPRINT_ID` | manual | managed agent identity blueprint id (Entra Agent ID); advanced |
+| `JOULE_BLUEPRINT_ID` | manual | agent identity blueprint appId (Entra Agent ID) — central identity input |
 | `JOULE_CONNECTION_ID` | manual | explicit RemoteA2A connection id (optional) |
 | `JOULE_PREVIEW_FEATURES` | manual | `Foundry-Features` opt-in header (default: `AgentEndpoints=V1Preview`) |
 
