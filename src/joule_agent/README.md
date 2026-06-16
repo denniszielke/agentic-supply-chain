@@ -87,10 +87,22 @@ pipeline):
 python -m scripts.deploy_joule_agent --build   # build image in ACR + deploy
 python -m scripts.deploy_joule_agent           # deploy only (image already in ACR)
 
-# Step 2 — register in the Foundry control plane (identity blueprint + external A2A)
+# Preflight — clear green/red on the prerequisites before registering
+python -m scripts.preflight_joule_agent            # read-only checks
+python -m scripts.preflight_joule_agent --probe     # also probe the A2A preview
+
+# Step 2 — register in Foundry with the agent identity blueprint + A2A
 python -m scripts.register_joule_agent --dry-run   # print the payload, no Azure calls
 python -m scripts.register_joule_agent             # live registration
 ```
+
+### Preflight checks
+
+`preflight_joule_agent.py` gives a single green/red verdict (exit code 0/1) before
+the demo. It checks: Foundry endpoint + Entra auth, the Joule Agent Card + `/health`
+are reachable, `JOULE_BLUEPRINT_ID` is set (and best-effort resolvable in Entra via
+Graph), a RemoteA2A connection exists (when configured), and — with `--probe` — that
+the **A2A preview is accepted** (by creating then deleting a throwaway agent version).
 
 ### Deploy variables
 

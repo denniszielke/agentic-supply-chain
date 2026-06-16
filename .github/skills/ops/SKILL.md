@@ -326,6 +326,17 @@ Key overrides:
 - `JOULE_AGENT_EXTERNAL=false` — internal ingress (default: `true`; A2A callers need external)
 - `JOULE_PUBLIC_URL` — override the URL advertised in the agent card (default: derived from FQDN)
 
+### Preflight — check prerequisites (green/red, exit 0/1)
+
+```bash
+python -m scripts.preflight_joule_agent            # read-only checks
+python -m scripts.preflight_joule_agent --probe     # also probe the A2A preview (creates+deletes a throwaway version)
+```
+
+Checks Foundry endpoint + auth, Joule Agent Card + `/health` reachable,
+`JOULE_BLUEPRINT_ID` set (best-effort Entra/Graph lookup), a RemoteA2A connection
+exists, and (with `--probe`) that the A2A preview is accepted.
+
 ### Step 2 — Register the agent in the Foundry control plane
 
 ```bash
