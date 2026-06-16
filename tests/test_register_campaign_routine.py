@@ -7,6 +7,7 @@ from scripts.register_campaign_routine import (
 from src.campaign_autopilot.workiq_email import (
     augmented_instructions,
     email_instruction,
+    _split_recipients,
 )
 
 
@@ -48,6 +49,20 @@ class WorkIQInstructionTests(unittest.TestCase):
         self.assertTrue(out.startswith(base))
         self.assertIn("DELIVERY INSTRUCTION (Work IQ Mail)", out)
         self.assertIn("m@x.com", out)
+
+
+class RecipientParsingTests(unittest.TestCase):
+    def test_handles_commas_and_semicolons(self):
+        self.assertEqual(
+            _split_recipients("a@x.com, b@x.com; c@x.com"),
+            ["a@x.com", "b@x.com", "c@x.com"],
+        )
+
+    def test_drops_empties_and_whitespace(self):
+        self.assertEqual(_split_recipients(" , a@x.com ,, "), ["a@x.com"])
+
+    def test_empty_string(self):
+        self.assertEqual(_split_recipients(""), [])
 
 
 if __name__ == "__main__":

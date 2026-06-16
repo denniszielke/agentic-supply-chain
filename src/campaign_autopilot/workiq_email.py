@@ -31,7 +31,35 @@ from __future__ import annotations
 import os
 from typing import Any, List
 
-from src.campaign_autopilot.config import DEFAULT_REPORT_TITLE, _split_recipients
+DEFAULT_REPORT_TITLE = "Weekly Competitor & Margin Briefing"
+
+# Default analysis prompt sent to the campaign agent on each scheduled run. The
+# agent produces this briefing and then emails it via Work IQ Mail (see the
+# delivery instruction below). Override with CAMPAIGN_AUTOPILOT_PROMPT.
+DEFAULT_PROMPT = (
+    "Produce this week's competitor-and-margin briefing for the retail marketing team. "
+    "Focus on the grocery categories under the most competitive pressure "
+    "(for example milchprodukte-eier, fleisch-wurst and obst-gemuese). For each category: "
+    "summarise what competitors are currently discounting (use search_competitor_promotions), "
+    "compare it against our internal margin and weekly volume (use the pricing tools), and "
+    "recommend two to three margin-aware promotion actions, each targeted at a shopping persona. "
+    "Always optimise weekly gross margin, never propose a shelf price below the procurement-plus-"
+    "logistics cost floor, and never reveal raw procurement cost. "
+    "Return the briefing as well-structured GitHub-flavoured Markdown: start with a short "
+    "'Executive summary' (3-4 sentences), then a table with the columns "
+    "| Category | Competitor pressure | Recommended action | Persona | Forecast weekly margin impact |, "
+    "and finish with a bulleted 'Key risks' section."
+)
+
+
+def _split_recipients(raw: str) -> List[str]:
+    """Parse a comma/semicolon separated recipient list into clean addresses."""
+    parts: List[str] = []
+    for chunk in raw.replace(";", ",").split(","):
+        addr = chunk.strip()
+        if addr:
+            parts.append(addr)
+    return parts
 
 
 WORKIQ_EMAIL_INSTRUCTION_TEMPLATE = """\

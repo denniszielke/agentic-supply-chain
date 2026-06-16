@@ -72,7 +72,11 @@ def _create_or_update(client) -> object:
     """Create/update the routine, tolerating SDKs that don't accept ``input``."""
     triggers = build_schedule_trigger(SCHEDULE, TIME_ZONE)
     action = build_action(AGENT_NAME)
-    prompt = os.getenv("CAMPAIGN_AUTOPILOT_PROMPT", "").strip()
+    # Default to the standard briefing prompt so the routine always sends a
+    # meaningful instruction; override with CAMPAIGN_AUTOPILOT_PROMPT.
+    from src.campaign_autopilot.workiq_email import DEFAULT_PROMPT
+
+    prompt = os.getenv("CAMPAIGN_AUTOPILOT_PROMPT", "").strip() or DEFAULT_PROMPT
 
     kwargs = dict(
         routine_name=ROUTINE_NAME,

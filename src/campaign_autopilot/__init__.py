@@ -1,15 +1,15 @@
-"""Campaign Autopilot — scheduled, emailed Campaign Planning Agent reports.
+"""Campaign Autopilot — Foundry-native scheduled, emailed campaign briefings.
 
-This package runs the existing :mod:`src.campaign_agent` on a schedule (as an
-Azure Container Apps *Job*) and emails its output as a nicely formatted report.
+Automates the Campaign Planning Agent the Foundry-native way: a Foundry
+**routine** triggers the agent on a schedule, and the agent emails its briefing
+itself through **Work IQ Mail** (Microsoft 365 / Outlook). No Container Apps Job
+and no Azure Communication Services — the schedule and the send both live inside
+Foundry.
 
-It is purely additive: it *imports and reuses* the campaign agent rather than
-modifying it, so the two can be developed and deployed independently.
+It is purely additive: it provides the Work IQ tool wiring and the routine
+registration without modifying the campaign agent.
 
 Modules:
-  config          — env-driven :class:`AutopilotConfig`.
-  report          — run the campaign agent and return its Markdown output.
-  email_renderer  — turn the Markdown report into a styled HTML + plain-text email.
-  email_sender    — pluggable email transport (Azure Communication Services / SMTP / file).
-  autopilot       — orchestrator and CLI entry point (``python -m src.campaign_autopilot.autopilot``).
+  workiq_email   — build the Work IQ Mail tool and the agent's email instruction.
+  (``scripts/register_campaign_routine.py`` registers/manages the Foundry routine.)
 """
