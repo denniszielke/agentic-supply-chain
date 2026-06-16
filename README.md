@@ -75,6 +75,7 @@ agentic-supply-chain/
 │   ├── deploy_joule_agent.py        # Joule step 1: deploy the simulated SAP Joule A2A agent (external ACA app)
 │   ├── register_joule_agent.py      # Joule step 2: register it in the Foundry control plane (identity blueprint + A2A)
 │   ├── preflight_joule_agent.py     # Joule preflight: green/red check of prerequisites before registering
+│   ├── register_joule_asset.py      # Joule step 3 (optional): guided portal checklist for governed control-plane asset registration
 │   ├── deploy_hosted_agents.py   # Deploy the shopping and campaign agents as Foundry hosted agents
 │   ├── deploy_helpers.py         # Shared image-build / Foundry client helpers
 │   ├── delete_index.py           # Delete an Azure AI Search index (schema + data)
@@ -142,6 +143,8 @@ registered in the Foundry control plane:
 | 2 | `python -m scripts.register_joule_agent` | Register it in the Foundry control plane with a managed agent identity blueprint + external A2A endpoint; `--dry-run` prints the payload |
 
 Run `python -m scripts.preflight_joule_agent` (add `--probe`) between the two steps for a green/red check of the prerequisites (blueprint id, A2A endpoint reachable, RemoteA2A connection, A2A preview).
+
+Optional **step 3** — govern Joule as a control-plane **asset** (proxy URL + observability): `python -m scripts.register_joule_asset` prints a portal checklist with the exact wizard values. This is portal-only and needs an AI gateway (APIM) on the Foundry resource.
 
 ### Cleanup
 

@@ -370,6 +370,19 @@ Key overrides:
 > — not performed by the script. Run `--dry-run` first. Needs Foundry RBAC
 > (Contributor/Owner + Foundry User).
 
+### Step 3 (optional) — Govern Joule as a control-plane asset (portal)
+
+```bash
+python -m scripts.register_joule_asset   # checks prerequisites + prints exact portal wizard values
+```
+
+Adds a proxy URL (via APIM), access control and observability. Portal-only
+(Foundry (new) → Operate → Register asset, Protocol = A2A) and **requires an AI
+gateway (Azure API Management)** on the Foundry resource — there is no API. The
+helper checks the endpoint, APIM (best-effort, needs `AZURE_RESOURCE_GROUP`) and
+App Insights, then prints the values to paste. Override the OpenTelemetry agent id
+with `JOULE_OTEL_AGENT_ID` (default: agent name).
+
 ---
 
 ## 9. Run Services Locally

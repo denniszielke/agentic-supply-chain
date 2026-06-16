@@ -94,7 +94,25 @@ python -m scripts.preflight_joule_agent --probe     # also probe the A2A preview
 # Step 2 — register in Foundry with the agent identity blueprint + A2A
 python -m scripts.register_joule_agent --dry-run   # print the payload, no Azure calls
 python -m scripts.register_joule_agent             # live registration
+
+# Step 3 (optional) — govern Joule as a control-plane ASSET (proxy URL + observability)
+python -m scripts.register_joule_asset             # prints portal checklist + exact wizard values
 ```
+
+### Step 3 (optional) — governed control-plane asset
+
+Registering Joule as a control-plane **asset** adds a **proxy URL** (via Azure API
+Management), access control (block/unblock) and **observability** — the governance
+/ audit story from the AI² deck. Per the
+[official docs](https://learn.microsoft.com/azure/foundry/control-plane/register-custom-agent)
+this is **portal-only** (Foundry (new) → Operate → Register asset) and **requires an
+AI gateway (Azure API Management)** on the Foundry resource — there is no REST/SDK/CLI
+to script it. `register_joule_asset.py` therefore does not register anything; it
+**checks the prerequisites** (endpoint reachable, APIM present, App Insights
+connected) and prints the **exact copy-paste values** for the wizard (Agent URL,
+Protocol = A2A, card path, OpenTelemetry agent ID, name, description), so the manual
+step is deterministic and low-error. Optional: set `JOULE_OTEL_AGENT_ID` to override
+the OpenTelemetry agent id (default: the agent name).
 
 ### Preflight checks
 
