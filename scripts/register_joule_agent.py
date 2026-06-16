@@ -1,47 +1,56 @@
-"""Step 2 of the Joule-agent pipeline — register the simulated SAP Joule agent
-in the **Azure AI Foundry control plane**.
+"""Step 2 of the Joule-agent pipeline — wire the simulated SAP Joule agent into
+**Azure AI Foundry** so other Foundry agents can call it over **A2A**.
 
 The agent itself runs on Azure Container Apps (step 1) and is **never hosted by
-Foundry**. This script registers it as a first-class agent in the Foundry control
-plane so it inherits the same identity, governance and audit fabric as the
-in-Foundry agents — the "agents are digital employees regardless of where they
-run" story. Two complementary things are wired up:
+Foundry**. This script follows the documented **A2A tool** pattern
+(https://learn.microsoft.com/azure/foundry/agents/how-to/tools/agent-to-agent):
+it creates a Foundry **prompt agent** whose only tool is an ``A2APreviewTool``
+pointing at the external Joule endpoint, so any Foundry agent (e.g. the Campaign
+Planning Agent) can reach Joule over A2A under policy — the same way the pricing
+MCP server is consumed through an ``MCPTool``.
 
-  1. **Identity / governance** — the agent version is created with a managed
-     **agent identity blueprint** (``ManagedAgentIdentityBlueprintReference``),
-     and its endpoint is advertised as speaking **A2A**.
+Per the docs the **recommended** way to point the tool at the endpoint is a
+Foundry project **connection** of category ``RemoteA2A`` (it stores the endpoint
+``target`` *and* the auth — including ``AgenticIdentity`` / Entra Agent ID
+passthrough). Pass the connection by name (``JOULE_A2A_CONNECTION_NAME``, resolved
+to its id at runtime) or by id (``JOULE_CONNECTION_ID``). When a ``RemoteA2A``
+connection is used the base URL comes from the connection, so ``JOULE_AGENT_URL``
+is only needed for non-``RemoteA2A`` connections or when no connection is set.
 
-  2. **Reachability** — the externally-hosted A2A endpoint is referenced through
-     an ``A2APreviewTool`` (``base_url`` + ``agent_card_path`` + optional project
-     ``connection_id``), exactly as the pricing MCP server is referenced through
-     an ``MCPTool``. The control-plane shell is a minimal prompt agent whose only
-     tool is that external A2A endpoint.
+This is **public preview** (the ``a2a_preview`` tool). Run ``--dry-run`` first to
+print the exact payload.
 
-Both rely on Foundry **preview** features (``AgentEndpoints=V1Preview`` and the
-``a2a_preview`` tool), so run ``--dry-run`` first to print the exact payload, then
-run live once the preview is enabled on your project.
+> NOTE — control-plane *asset* registration is a separate, portal-based step.
+> Registering Joule as a governed Control-Plane **asset** (Operate → Register
+> asset → Protocol = A2A) gives it a proxy URL, access control and observability,
+> and **requires an AI gateway (Azure API Management) on the Foundry resource**.
+> That flow is portal-driven and is *not* performed by this script — see
+> https://learn.microsoft.com/azure/foundry/control-plane/register-custom-agent.
+> The optional ``JOULE_BLUEPRINT_ID`` below attaches a managed agent identity
+> blueprint via the SDK; it is advanced/undocumented and off unless you set it.
 
 Environment variables:
   AZURE_AI_PROJECT_ENDPOINT     Foundry project endpoint (required for live runs).
-  JOULE_AGENT_NAME              Control-plane agent name (default: joule-agent).
-  JOULE_AGENT_URL               Public base URL of the deployed A2A agent. If
-                                unset it is derived from the Container App FQDN
-                                (JOULE_AGENT_APP_NAME, AZURE_RESOURCE_GROUP).
+  JOULE_AGENT_NAME              Foundry agent name (default: joule-agent).
+  JOULE_A2A_CONNECTION_NAME     Name of a RemoteA2A project connection (recommended;
+                                resolved to its id at runtime). See the A2A docs to
+                                create one (portal: Tools → Connect tool → Custom →
+                                Agent2Agent (A2A); or the ARM REST PUT in the docs).
+  JOULE_CONNECTION_ID           Explicit connection id (alternative to the name).
+  JOULE_AGENT_URL               Public base URL of the deployed A2A agent (only
+                                needed without a RemoteA2A connection). If unset it
+                                is derived from the Container App FQDN.
   JOULE_AGENT_APP_NAME          Container App name to resolve the URL from
                                 (default: joule-agent).
   JOULE_AGENT_CARD_PATH         Agent-card path (default: /.well-known/agent-card.json).
-  JOULE_BLUEPRINT_ID            Managed agent identity blueprint id (Entra Agent
-                                ID). Strongly recommended — without it the agent is
-                                registered WITHOUT the identity blueprint.
-  JOULE_CONNECTION_ID           Optional Foundry project connection id holding auth
-                                to the A2A server (for network-restricted ingress).
+  JOULE_BLUEPRINT_ID            Managed agent identity blueprint id (Entra Agent ID).
+                                Advanced/undocumented — only sent when set.
   JOULE_PREVIEW_FEATURES        Foundry-Features opt-in header value for the preview
                                 (default: AgentEndpoints=V1Preview). Override to match
                                 what your tenant has enabled, e.g. ExternalAgents=V1Preview.
                                 These are PREVIEW features and are not guaranteed
                                 enabled on every project/region.
-  AZURE_AI_MODEL_DEPLOYMENT_NAME  Model for the control-plane shell agent
-                                (default: gpt-4.1-mini).
+  AZURE_AI_MODEL_DEPLOYMENT_NAME  Model for the prompt agent (default: gpt-4.1-mini).
 """
 
 from __future__ import annotations
@@ -123,20 +132,35 @@ def _resolve_base_url() -> str:
     return ""
 
 
-def _build_definition(base_url: str) -> PromptAgentDefinition:
-    """Control-plane shell: a prompt agent whose only tool is the external A2A agent."""
-    connection_id = os.getenv("JOULE_CONNECTION_ID", "").strip()
-    a2a_tool = A2APreviewTool(
-        base_url=base_url,
-        agent_card_path=CARD_PATH,
-        **({"project_connection_id": connection_id} if connection_id else {}),
-    )
+def _resolve_connection_id(client) -> str:
+    """Resolve a RemoteA2A connection name to its id (documented primary path)."""
+    explicit = os.getenv("JOULE_CONNECTION_ID", "").strip()
+    if explicit:
+        return explicit
+    name = os.getenv("JOULE_A2A_CONNECTION_NAME", "").strip()
+    if name and client is not None:
+        return client.connections.get(name).id
+    return ""
+
+
+def _build_definition(base_url: str, connection_id: str) -> PromptAgentDefinition:
+    """Prompt agent whose only tool is the external Joule A2A endpoint.
+
+    Follows the documented A2A tool shape: prefer a RemoteA2A ``project_connection_id``
+    (the connection carries the endpoint target + auth); ``base_url`` is only sent
+    when no connection is used (or for non-RemoteA2A connections).
+    """
+    tool_kwargs: dict = {"agent_card_path": CARD_PATH}
+    if connection_id:
+        tool_kwargs["project_connection_id"] = connection_id
+    if base_url and not connection_id:
+        tool_kwargs["base_url"] = base_url
+    a2a_tool = A2APreviewTool(**tool_kwargs)
     return PromptAgentDefinition(
         model=MODEL,
         instructions=(
-            "You are a thin control-plane proxy for the external SAP Joule supply "
-            "agent. Forward supply / fulfilment questions to it over A2A and return "
-            "its answer unchanged."
+            "You are a thin proxy for the external SAP Joule supply agent. Forward "
+            "supply / fulfilment questions to it over A2A and return its answer."
         ),
         tools=[a2a_tool],
     )
@@ -158,10 +182,15 @@ def _as_payload(obj) -> dict:
 
 
 def deploy(dry_run: bool = False) -> None:
+    connection_name = os.getenv("JOULE_A2A_CONNECTION_NAME", "").strip()
+    connection_id = os.getenv("JOULE_CONNECTION_ID", "").strip()
     base_url = _resolve_base_url()
-    if not base_url:
+
+    # A connection (RemoteA2A) carries the endpoint; otherwise we need a base URL.
+    if not connection_name and not connection_id and not base_url:
         print(
-            "Cannot resolve the Joule agent URL: set JOULE_AGENT_URL, or set "
+            "Cannot resolve the Joule endpoint: set JOULE_A2A_CONNECTION_NAME (a "
+            "RemoteA2A connection, recommended), or JOULE_AGENT_URL, or set "
             "AZURE_RESOURCE_GROUP so the joule-agent Container App URL can be derived."
         )
         return
@@ -173,14 +202,21 @@ def deploy(dry_run: bool = False) -> None:
         else None
     )
 
-    definition = _build_definition(base_url)
+    client = None if dry_run else get_client()
+    # Live: resolve a connection name -> id. Dry-run: just echo what was provided.
+    resolved_conn_id = connection_id
+    if not dry_run:
+        resolved_conn_id = _resolve_connection_id(client)
+
+    definition = _build_definition(base_url, resolved_conn_id)
     endpoint_config = AgentEndpointConfig(protocols=[AgentEndpointProtocol.A2A])
 
-    print(f"Registering external A2A agent '{AGENT_NAME}' in the Foundry control plane:")
-    print(f"  A2A base URL:     {base_url}")
+    print(f"Registering Foundry A2A-tool agent '{AGENT_NAME}':")
+    print(f"  A2A connection:   {connection_name or connection_id or '(none — using base URL)'}")
+    print(f"  A2A base URL:     {base_url or '(from connection)'}")
     print(f"  Agent card path:  {CARD_PATH}")
     print(f"  Identity blueprint: {blueprint_id or '(none — set JOULE_BLUEPRINT_ID)'}")
-    print(f"  Shell model:      {MODEL}")
+    print(f"  Model:            {MODEL}")
     print(f"  Preview header:   {_PREVIEW_HEADERS or '(none)'}")
 
     if dry_run:
@@ -211,12 +247,11 @@ def deploy(dry_run: bool = False) -> None:
         return
     if blueprint_ref is None:
         print(
-            "\nWARNING: JOULE_BLUEPRINT_ID is not set — registering WITHOUT a managed "
-            "agent identity blueprint. Provision an Entra Agent ID blueprint and set "
-            "JOULE_BLUEPRINT_ID to bind the agent's identity."
+            "\nNote: JOULE_BLUEPRINT_ID is not set — no managed agent identity "
+            "blueprint attached (advanced/undocumented). The A2A tool itself does "
+            "not require it; set it only if your project supports agent blueprints."
         )
 
-    client = get_client()
     create_kwargs: dict = {
         "agent_name": AGENT_NAME,
         "definition": definition,
@@ -234,11 +269,14 @@ def deploy(dry_run: bool = False) -> None:
         agent_card=JOULE_AGENT_CARD,
     )
 
-    project_endpoint = os.getenv("AZURE_AI_PROJECT_ENDPOINT", "").rstrip("/")
-    a2a_base = f"{project_endpoint}/agents/{AGENT_NAME}/endpoint/protocols/a2a"
-    print(f"\nAgent '{AGENT_NAME}' registered in the control plane.")
-    print(f"  External A2A endpoint: {base_url}")
-    print(f"  Foundry A2A card:      {a2a_base}/agentCard/v0.3")
+    print(f"\nFoundry agent '{AGENT_NAME}' created with an A2A tool to the Joule endpoint.")
+    print(f"  External A2A endpoint: {base_url or '(from connection)'}")
+    print(
+        "  Other Foundry agents can now call it via the A2A tool. For governed "
+        "control-plane asset registration (proxy URL + observability), register it "
+        "in the portal (needs an AI gateway): "
+        "https://learn.microsoft.com/azure/foundry/control-plane/register-custom-agent"
+    )
 
 
 if __name__ == "__main__":

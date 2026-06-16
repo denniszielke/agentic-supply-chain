@@ -105,23 +105,50 @@ python -m scripts.register_joule_agent             # live registration
 
 | Variable | Description | Default |
 | --- | --- | --- |
-| `JOULE_AGENT_NAME` | Control-plane agent name | `joule-agent` |
-| `JOULE_AGENT_URL` | Public A2A base URL | derived from the ACA FQDN |
+| `JOULE_AGENT_NAME` | Foundry agent name | `joule-agent` |
+| `JOULE_A2A_CONNECTION_NAME` | Name of a **RemoteA2A** project connection (recommended; carries endpoint target + auth) | — |
+| `JOULE_CONNECTION_ID` | Explicit connection id (alternative to the name) | — |
+| `JOULE_AGENT_URL` | Public A2A base URL (only needed without a RemoteA2A connection) | derived from the ACA FQDN |
 | `JOULE_AGENT_CARD_PATH` | Agent-card path | `/.well-known/agent-card.json` |
-| `JOULE_BLUEPRINT_ID` | Managed agent identity blueprint id (Entra Agent ID) | — (strongly recommended) |
-| `JOULE_CONNECTION_ID` | Foundry connection id holding auth to the A2A server | — (optional) |
+| `JOULE_BLUEPRINT_ID` | Managed agent identity blueprint id (Entra Agent ID) — advanced/undocumented | — |
 | `JOULE_PREVIEW_FEATURES` | `Foundry-Features` opt-in header for the preview | `AgentEndpoints=V1Preview` |
-| `AZURE_AI_MODEL_DEPLOYMENT_NAME` | Model for the control-plane shell agent | `gpt-4.1-mini` |
+| `AZURE_AI_MODEL_DEPLOYMENT_NAME` | Model for the proxy prompt agent | `gpt-4.1-mini` |
 
-> **Preview note.** Attaching an external A2A endpoint to a control-plane agent
-> uses Foundry preview features (`Foundry-Features: AgentEndpoints=V1Preview` — or
-> `ExternalAgents=V1Preview`, set via `JOULE_PREVIEW_FEATURES` — and the
-> `a2a_preview` tool). **These previews are not guaranteed enabled on every
-> project/region**; confirm against your project (a live call returns a 4xx when
-> the flag is not honoured). Run `register_joule_agent --dry-run` first to inspect
-> the exact `create_version` / `patch_agent_details` payload, then run live once
-> the preview is enabled on your project. Without `JOULE_BLUEPRINT_ID` the agent
-> is still registered, but **without** the managed identity blueprint.
+## How this maps to the official Foundry docs (public preview)
+
+Verified against Microsoft Learn (June 2026). There are **two distinct** ways the
+external Joule agent meets Foundry, and this repo covers both — but one of them is
+a **portal** step with its own prerequisite:
+
+1. **Make Joule callable from Foundry agents — the A2A *tool*** *(what
+   `register_joule_agent.py` does, SDK)*. Per
+   [Connect to an A2A endpoint](https://learn.microsoft.com/azure/foundry/agents/how-to/tools/agent-to-agent),
+   you create a prompt agent whose tool is an `A2APreviewTool` pointing at Joule.
+   The **recommended** binding is a project **connection** of category `RemoteA2A`
+   (it stores the endpoint `target` *and* the auth — including `AgenticIdentity`
+   / **Entra Agent ID** passthrough). Create it once in the portal
+   (**Tools → Connect tool → Custom → Agent2Agent (A2A)**) or via the ARM REST PUT
+   in the doc, then pass `JOULE_A2A_CONNECTION_NAME`.
+
+2. **Govern Joule as a control-plane *asset*** *(portal, needs an AI gateway)*. Per
+   [Register a custom agent in Foundry Control Plane](https://learn.microsoft.com/azure/foundry/control-plane/register-custom-agent),
+   you register the externally-hosted A2A agent via **Operate → Register asset**
+   (Protocol = **A2A**, card path `/.well-known/agent-card.json`). Foundry then
+   issues a **proxy URL** (via Azure API Management) and gives you access control +
+   observability. **Prerequisite: an AI gateway (Azure API Management) must be
+   enabled on the Foundry resource.** This step is **portal-driven** and is *not*
+   performed by the script.
+
+The Joule **server** matches the docs' "Option 2: build a custom A2A server using
+the official A2A SDK", serving its card at `/.well-known/agent-card.json`.
+
+> **Preview / availability.** The A2A tool is **public preview** (the `a2a_preview`
+> tool type) — broadly available but with no SLA and possible region limits;
+> confirm against your project. The `JOULE_BLUEPRINT_ID` (managed identity
+> blueprint) path is advanced/undocumented and only sent when set. Foundry RBAC was
+> recently renamed — you need **Contributor/Owner** on the Foundry resource plus
+> **Foundry User**. Run `register_joule_agent --dry-run` first to inspect the
+> payload.
 
 ## Key files
 

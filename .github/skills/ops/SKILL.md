@@ -334,23 +334,30 @@ JOULE_BLUEPRINT_ID=<entra-agent-id-blueprint> python -m scripts.register_joule_a
 ```
 
 Derives the A2A URL from the Container App FQDN (`AZURE_RESOURCE_GROUP`), or set
-`JOULE_AGENT_URL` explicitly. Registration is two complementary parts:
-**identity** (managed agent identity blueprint + A2A endpoint advertisement) and
-**reachability** (external `base_url` via an `A2APreviewTool`).
+`JOULE_AGENT_URL` explicitly. The script follows the documented **A2A tool**
+pattern — it creates a Foundry prompt agent whose tool is an `A2APreviewTool`
+pointing at Joule, so other Foundry agents can call it. The **recommended** binding
+is a `RemoteA2A` project connection (`JOULE_A2A_CONNECTION_NAME`) that stores the
+endpoint target + auth (incl. `AgenticIdentity` / Entra Agent ID).
 
 Key overrides:
-- `JOULE_AGENT_NAME` — control-plane agent name (default: `joule-agent`)
-- `JOULE_AGENT_URL` — explicit A2A base URL
-- `JOULE_BLUEPRINT_ID` — managed agent identity blueprint id (Entra Agent ID); strongly recommended
-- `JOULE_CONNECTION_ID` — Foundry connection id holding auth to the A2A server (optional)
+- `JOULE_AGENT_NAME` — Foundry agent name (default: `joule-agent`)
+- `JOULE_A2A_CONNECTION_NAME` — RemoteA2A connection name (recommended)
+- `JOULE_CONNECTION_ID` — explicit connection id (alternative to the name)
+- `JOULE_AGENT_URL` — explicit A2A base URL (only without a RemoteA2A connection)
+- `JOULE_BLUEPRINT_ID` — managed agent identity blueprint id (Entra Agent ID); advanced/undocumented
 - `JOULE_AGENT_CARD_PATH` — agent-card path (default: `/.well-known/agent-card.json`)
 - `JOULE_PREVIEW_FEATURES` — `Foundry-Features` opt-in header (default: `AgentEndpoints=V1Preview`; try `ExternalAgents=V1Preview`)
 
-> **Preview.** Uses `Foundry-Features: AgentEndpoints=V1Preview` (override with
-> `JOULE_PREVIEW_FEATURES`) and the `a2a_preview` tool. **Not guaranteed enabled in
-> every project/region** — a live call returns a 4xx when the flag is not honoured.
-> Run `--dry-run` first. Without `JOULE_BLUEPRINT_ID` the agent is registered but
-> **without** the identity blueprint.
+> **Verified vs. official docs (public preview).** The A2A *tool* (call Joule from
+> a Foundry agent) is documented + public preview:
+> [agent-to-agent tool](https://learn.microsoft.com/azure/foundry/agents/how-to/tools/agent-to-agent).
+> Governing Joule as a control-plane **asset** (proxy URL + observability) is a
+> **portal** step that **requires an AI gateway (Azure API Management)** on the
+> Foundry resource:
+> [register-custom-agent](https://learn.microsoft.com/azure/foundry/control-plane/register-custom-agent)
+> — not performed by the script. Run `--dry-run` first. Needs Foundry RBAC
+> (Contributor/Owner + Foundry User).
 
 ---
 
@@ -467,9 +474,11 @@ All variables are written to `./.env` by `azd up`.
 | `JOULE_AGENT_EXTERNAL` | manual | `false` for internal ingress (default: `true`) |
 | `JOULE_PUBLIC_URL` | manual | URL advertised in the agent card (default: derived from FQDN) |
 | `JOULE_AGENT_NAME` | manual | control-plane agent name (default: `joule-agent`) |
-| `JOULE_AGENT_URL` | manual | explicit A2A base URL (default: derived from FQDN) |
-| `JOULE_BLUEPRINT_ID` | manual | managed agent identity blueprint id (Entra Agent ID) |
-| `JOULE_CONNECTION_ID` | manual | Foundry connection id for the A2A server (optional) |
+| `JOULE_A2A_CONNECTION_NAME` | manual | RemoteA2A project connection name (recommended) |
+| `JOULE_AGENT_URL` | manual | explicit A2A base URL (only without a RemoteA2A connection) |
+| `JOULE_BLUEPRINT_ID` | manual | managed agent identity blueprint id (Entra Agent ID); advanced |
+| `JOULE_CONNECTION_ID` | manual | explicit RemoteA2A connection id (optional) |
+| `JOULE_PREVIEW_FEATURES` | manual | `Foundry-Features` opt-in header (default: `AgentEndpoints=V1Preview`) |
 
 ---
 
