@@ -22,7 +22,7 @@ project supports.
 | Schedule | **Foundry routine** (`scripts/register_campaign_routine.py`) | Azure Container Apps **Job** (`scripts/deploy_campaign_autopilot.py`) |
 | Email | Agent sends via **Work IQ Mail** (Microsoft 365 / Outlook) | This process sends via **ACS** or **SMTP** |
 | Who emails | the **agent itself** (a Work IQ tool) | the autopilot wrapper (`email_sender.py`) |
-| Best when | the project is in a routines region, **not VNet-restricted**, with M365 Copilot licences | Work IQ / routines preview isn't available to you (VNet, region, licensing) |
+| Best when | the project is in a routines region with M365 Copilot licences (this repo's Foundry endpoint is public, so VNet is not a blocker) | Work IQ / routines preview isn't available to you (region, licensing, or unattended-OBO) |
 
 > **Why both?** Dennis asked for the Foundry-native shape (routine + Work IQ
 > Mail) because that's how a Foundry-hosted agent should be automated. But both
@@ -41,8 +41,8 @@ is the actual deployment and a live test:
 
 - registering the routine against a real Foundry project,
 - creating the Work IQ connection + Entra admin consent and sending a real email,
-- confirming the project's region/VNet/licensing satisfy the preview
-  requirements.
+- confirming the project's region and licensing satisfy the preview
+  requirements (the Foundry endpoint is already public, so VNet is not a concern).
 
 The offline path (`--dry-run --sample`) lets anyone preview the email formatting
 with no Azure at all.
@@ -114,9 +114,14 @@ Config: `CAMPAIGN_ROUTINE_NAME`, `AZURE_AI_CAMPAIGN_AGENT_NAME` (default
 - **Routines are region-limited** in preview (East US, East US 2, West US,
   West US 2, West Central US, North Central US, Sweden Central, Japan East at the
   time of writing). Confirm your project's region first.
-- **Work IQ does not support VNet-restricted projects.** This repo's infra uses a
-  VNet, so the Foundry-native email path needs a non-VNet project (or use the
-  fallback).
+- **Work IQ requires a non-VNet-restricted Foundry *project* endpoint.** Per the
+  [Work IQ docs](https://learn.microsoft.com/azure/foundry/agents/how-to/tools/work-iq):
+  *"Virtual network (VNet) integration is not supported. Your Foundry project must
+  not use a VNet-restricted endpoint."* **This repo satisfies that** — the Foundry
+  account sets `publicNetworkAccess: 'Enabled'` with no `virtualNetworkRules`
+  (`infra/core/ai/ai-project.bicep`). The VNet that exists is wired only to the
+  Container Apps environment (`infra/core/host/container-apps-environment.bicep`),
+  not the Foundry project, so it is **not** a blocker for Work IQ.
 - **Unattended OBO.** Work IQ runs on-behalf-of the signed-in user; a *scheduled*
   routine has no interactive user. Whether a routine-invoked agent can send Work
   IQ Mail unattended must be validated against your tenant — this is the main
