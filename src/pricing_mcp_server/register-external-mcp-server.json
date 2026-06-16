@@ -1,0 +1,40 @@
+{
+  "serverName": "ext_pricing_data",
+  "serverUrl": "",
+  "authType": "NoAuth",
+  "description": "Internal retail pricing MCP server for cost, volume forecasts and margin data.",
+  "publisherName": "Contoso",
+  "tools": [
+    {
+      "name": "list_categories",
+      "description": "List all product categories with aggregated weekly margin and volume."
+    },
+    {
+      "name": "list_products",
+      "description": "List internal products with pricing, cost, volume and margin figures."
+    },
+    {
+      "name": "get_product_pricing",
+      "description": "Get the full internal pricing breakdown for a single product."
+    },
+    {
+      "name": "get_category_margin_forecast",
+      "description": "Forecast total weekly volume, revenue and gross margin for a category."
+    },
+    {
+      "name": "get_volume_forecast",
+      "description": "Forecast weekly unit volume for a product, optionally at a new price."
+    },
+    {
+      "name": "simulate_price_change",
+      "description": "Simulate the margin impact of moving a product to a new shelf price."
+    },
+    {
+      "name": "list_personas",
+      "description": "List shopping personas with price sensitivity and category affinities."
+    }
+  ],
+  "remoteScopes": null,
+  "externalOAuth": null,
+  "apiKey": null
+}

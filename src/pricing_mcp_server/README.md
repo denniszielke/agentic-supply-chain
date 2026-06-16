@@ -80,3 +80,65 @@ Then register it as a Foundry toolbox and deploy the agent:
 python -m scripts.register_pricing_toolbox   # step 2
 python -m scripts.deploy_campaign_agent      # step 3
 ```
+
+
+## Register for A365 directly
+
+Use the helper script to generate and print the correctly formatted command from env vars:
+
+```bash
+PRICING_MCP_URL="https://pricing-mcp-server.<env-default-domain>/mcp" \
+python -m scripts.register_pricing_a365_tool
+```
+
+Or run the command directly using the input file (recommended — avoids interactive prompts):
+
+```bash
+a365 develop-mcp register-external-mcp-server \
+  -f src/pricing_mcp_server/register-external-mcp-server.json
+```
+
+Or with explicit flags:
+
+```bash
+a365 develop-mcp register-external-mcp-server \
+  --server-name "ext_pricing" \
+  --server-url "$PRICING_MCP_URL" \
+  --publisher "Contoso" \
+  --description "Internal retail pricing MCP server - provides procurement cost, weekly volume forecasts, and margin data for retail categories." \
+  --auth-type "NoAuth" \
+  --tools "list_categories,list_products,get_product_pricing,get_category_margin_forecast,get_volume_forecast,simulate_price_change,list_personas"
+
+a365 develop-mcp register-external-mcp-server -f ./register-external-mcp-server.json
+
+```
+
+> **Note:** The server name must start with `ext_` and be ≤ 20 characters.
+
+### Cleanup after a failed registration
+
+If the registration fails the CLI may leave orphaned Entra app registrations behind.
+Find and delete them before retrying:
+
+```bash
+# List all stale ext_pricing-related app registrations
+az ad app list --display-name "ext_pricing" \
+  --query "[].{name:displayName, appId:appId}" -o table
+
+# Also check for the BYO app created by the backend
+az ad app list --display-name "ext_pricing - BYO" \
+  --query "[].{name:displayName, appId:appId}" -o table
+
+# Delete each one by appId
+az ad app delete --id <appId>
+```
+
+Common apps left behind after a failed run:
+
+| Display name | Created by |
+| --- | --- |
+| `ext_pricing-A365Proxy` | CLI (first step) |
+| `ext_pricing-PublicClients` | CLI (first step) |
+| `ext_pricing - BYO` | Backend (second step) |
+
+Once all stale registrations are removed, retry the registration.

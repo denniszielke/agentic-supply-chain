@@ -116,14 +116,15 @@ All scripts read configuration from `./.env` (written by `azd up`). Run them fro
 | `scripts/deploy_hosted_agents.py` | Deploy the shopping and campaign agents as Foundry hosted agents |
 | `scripts/deploy_helpers.py` | Shared helpers for image builds and the Foundry client (imported, not run directly) |
 
-#### Campaign-agent pipeline (three discrete steps)
+#### Campaign-agent pipeline (four discrete steps)
 
-The pricing MCP server, its toolbox registration, and the hosted campaign agent are deployed as three explicit, independently runnable steps:
+The pricing MCP server, its toolbox registration, its Agent 365 BYO registration, and the hosted campaign agent are deployed as four explicit, independently runnable steps:
 
 | Step | Script | Purpose |
 |---|---|---|
 | 1 | `python -m scripts.deploy_pricing_mcp_server` | Deploy the pricing MCP server as a (by default internal) Container App and print its `…/mcp` URL |
 | 2 | `python -m scripts.register_pricing_toolbox` | Register the deployed MCP server as a Foundry toolbox (`pricing-tools`); derives the URL from the Container App FQDN, or set `PRICING_MCP_URL` |
+| 2b | `python -m scripts.register_pricing_a365_tool` | Register the pricing MCP server as a BYO tool in Agent 365 (updates `ToolingManifest.json` **and** calls `a365 develop-mcp register-external-mcp-server`) |
 | 3 | `python -m scripts.deploy_campaign_agent` | Deploy the campaign planning agent as a Foundry hosted agent that consumes the toolbox |
 
 ### Cleanup
@@ -278,10 +279,38 @@ python -m scripts.deploy_pricing_mcp_server
 # PRICING_MCP_URL explicitly to override it.
 python -m scripts.register_pricing_toolbox
 
+# Step 2b — register the pricing MCP server in Agent 365 as a BYO tool.
+# This does two things:
+#   (a) calls `a365 develop-mcp register-external-mcp-server` so the server is
+#       governable through the A365 tooling gateway in production, and
+#   (b) writes/updates ToolingManifest.json so the A365 SDK can discover it in
+#       development mode via McpToolServerConfigurationService.
+export PRICING_MCP_URL="https://pricing-mcp-server.<env-default-domain>/mcp"  # or derived automatically
+python -m scripts.register_pricing_a365_tool
+# The underlying a365 CLI call is equivalent to:
+# a365 develop-mcp register-external-mcp-server \
+#   --server-name "ext_pricing" \
+#   --server-url  "$PRICING_MCP_URL" \
+#   --publisher   "Contoso" \
+#   --description "Internal retail pricing MCP server — provides procurement cost, weekly volume forecasts, and margin data for retail categories." \
+#   --auth-type   "NoAuth" \
+#   --tools       "list_categories,list_products,get_product_pricing,get_category_margin_forecast,get_volume_forecast,simulate_price_change,list_personas"
+
 # Step 3 — deploy the campaign planning agent as a Foundry hosted agent.
 # It consumes the toolbox via PRICING_TOOLBOX_NAME (default: pricing-tools).
 python -m scripts.deploy_campaign_agent
 ```
+
+Override any of the BYO registration parameters via environment variables:
+
+| Variable | Default | Description |
+|---|---|---|
+| `PRICING_MCP_SERVER_NAME` | `ext_pricing` | A365 server identifier — must start with `ext_`, ≤ 20 chars |
+| `PRICING_MCP_PUBLISHER` | `Contoso` | Publisher name in the MOS package metadata |
+| `PRICING_MCP_DESCRIPTION` | *(see script)* | Server description in the MOS package metadata |
+| `PRICING_MCP_AUTH_TYPE` | `NoAuth` | `EntraOAuth` \| `ExternalOAuth` \| `APIKey` \| `NoAuth` |
+| `PRICING_MCP_TOOLS` | *(all 7 tools)* | Comma-separated list of tool names to advertise |
+| `A365_DRY_RUN` | `false` | Set to `true` to pass `--dry-run` to the CLI (preview only) |
 
 `scripts/deploy_hosted_agents.py` remains available to deploy the shopping and
 campaign agents together; step 3 above is the campaign-agent-only equivalent.
