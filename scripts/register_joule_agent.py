@@ -35,6 +35,11 @@ Environment variables:
                                 registered WITHOUT the identity blueprint.
   JOULE_CONNECTION_ID           Optional Foundry project connection id holding auth
                                 to the A2A server (for network-restricted ingress).
+  JOULE_PREVIEW_FEATURES        Foundry-Features opt-in header value for the preview
+                                (default: AgentEndpoints=V1Preview). Override to match
+                                what your tenant has enabled, e.g. ExternalAgents=V1Preview.
+                                These are PREVIEW features and are not guaranteed
+                                enabled on every project/region.
   AZURE_AI_MODEL_DEPLOYMENT_NAME  Model for the control-plane shell agent
                                 (default: gpt-4.1-mini).
 """
@@ -62,8 +67,14 @@ AGENT_NAME = os.getenv("JOULE_AGENT_NAME", "joule-agent")
 CARD_PATH = os.getenv("JOULE_AGENT_CARD_PATH", "/.well-known/agent-card.json")
 MODEL = os.getenv("AZURE_AI_MODEL_DEPLOYMENT_NAME", "gpt-4.1-mini")
 
-# Preview feature flag required to attach an external A2A endpoint to an agent.
-_PREVIEW_HEADERS = {"Foundry-Features": "AgentEndpoints=V1Preview"}
+# Preview feature flag(s) sent as the ``Foundry-Features`` opt-in header to attach
+# an external A2A endpoint to a control-plane agent. These are PREVIEW features and
+# are NOT guaranteed enabled on every project/region — confirm against your project
+# (a live call returns a 4xx when the flag is not honoured). Override via
+# JOULE_PREVIEW_FEATURES to match what your tenant has enabled; known agent opt-in
+# values include "AgentEndpoints=V1Preview" and "ExternalAgents=V1Preview".
+PREVIEW_FEATURES = os.getenv("JOULE_PREVIEW_FEATURES", "AgentEndpoints=V1Preview").strip()
+_PREVIEW_HEADERS = {"Foundry-Features": PREVIEW_FEATURES} if PREVIEW_FEATURES else {}
 
 JOULE_AGENT_CARD = AgentCard(
     version="1.0",
@@ -170,6 +181,7 @@ def deploy(dry_run: bool = False) -> None:
     print(f"  Agent card path:  {CARD_PATH}")
     print(f"  Identity blueprint: {blueprint_id or '(none — set JOULE_BLUEPRINT_ID)'}")
     print(f"  Shell model:      {MODEL}")
+    print(f"  Preview header:   {_PREVIEW_HEADERS or '(none)'}")
 
     if dry_run:
         print("\n--dry-run: no Azure calls made. create_version payload:")

@@ -110,11 +110,15 @@ python -m scripts.register_joule_agent             # live registration
 | `JOULE_AGENT_CARD_PATH` | Agent-card path | `/.well-known/agent-card.json` |
 | `JOULE_BLUEPRINT_ID` | Managed agent identity blueprint id (Entra Agent ID) | — (strongly recommended) |
 | `JOULE_CONNECTION_ID` | Foundry connection id holding auth to the A2A server | — (optional) |
+| `JOULE_PREVIEW_FEATURES` | `Foundry-Features` opt-in header for the preview | `AgentEndpoints=V1Preview` |
 | `AZURE_AI_MODEL_DEPLOYMENT_NAME` | Model for the control-plane shell agent | `gpt-4.1-mini` |
 
 > **Preview note.** Attaching an external A2A endpoint to a control-plane agent
-> uses Foundry preview features (`Foundry-Features: AgentEndpoints=V1Preview` and
-> the `a2a_preview` tool). Run `register_joule_agent --dry-run` first to inspect
+> uses Foundry preview features (`Foundry-Features: AgentEndpoints=V1Preview` — or
+> `ExternalAgents=V1Preview`, set via `JOULE_PREVIEW_FEATURES` — and the
+> `a2a_preview` tool). **These previews are not guaranteed enabled on every
+> project/region**; confirm against your project (a live call returns a 4xx when
+> the flag is not honoured). Run `register_joule_agent --dry-run` first to inspect
 > the exact `create_version` / `patch_agent_details` payload, then run live once
 > the preview is enabled on your project. Without `JOULE_BLUEPRINT_ID` the agent
 > is still registered, but **without** the managed identity blueprint.

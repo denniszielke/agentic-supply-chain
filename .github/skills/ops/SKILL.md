@@ -344,10 +344,13 @@ Key overrides:
 - `JOULE_BLUEPRINT_ID` — managed agent identity blueprint id (Entra Agent ID); strongly recommended
 - `JOULE_CONNECTION_ID` — Foundry connection id holding auth to the A2A server (optional)
 - `JOULE_AGENT_CARD_PATH` — agent-card path (default: `/.well-known/agent-card.json`)
+- `JOULE_PREVIEW_FEATURES` — `Foundry-Features` opt-in header (default: `AgentEndpoints=V1Preview`; try `ExternalAgents=V1Preview`)
 
-> **Preview.** Uses `Foundry-Features: AgentEndpoints=V1Preview` and the
-> `a2a_preview` tool. Run `--dry-run` first. Without `JOULE_BLUEPRINT_ID` the agent
-> is registered but **without** the identity blueprint.
+> **Preview.** Uses `Foundry-Features: AgentEndpoints=V1Preview` (override with
+> `JOULE_PREVIEW_FEATURES`) and the `a2a_preview` tool. **Not guaranteed enabled in
+> every project/region** — a live call returns a 4xx when the flag is not honoured.
+> Run `--dry-run` first. Without `JOULE_BLUEPRINT_ID` the agent is registered but
+> **without** the identity blueprint.
 
 ---
 
