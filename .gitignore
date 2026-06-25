@@ -9,7 +9,7 @@ __pycache__/
 data/**
 narrative.md
 graphics.md
-
+visuals/**
 full_narrative.md
 **/.DS_Store
 # Distribution / packaging

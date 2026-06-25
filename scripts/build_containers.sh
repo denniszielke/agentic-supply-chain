@@ -70,6 +70,7 @@ build_image() {
 
 build_image "pricing-mcp-server"  "src/pricing_mcp_server/Dockerfile"
 build_image "shopping-agent"      "src/shopping_agent/Dockerfile"
+build_image "shopping-harness"    "src/shopping_harness/Dockerfile"
 build_image "campaign-agent"      "src/campaign_agent/Dockerfile"
 
 echo "All images built successfully."

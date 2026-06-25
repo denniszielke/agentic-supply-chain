@@ -79,6 +79,16 @@ module applicationInsights '../monitor/applicationinsights.bicep' = if (enableMo
   }
 }
 
+module supplierApplicationInsights '../monitor/applicationinsights.bicep' = if (enableMonitoring) {
+  name: 'supplierApplicationInsights'
+  params: {
+    location: location
+    tags: tags
+    name: 'appi-sup-${resourceToken}'
+    logAnalyticsWorkspaceId: logAnalytics!.outputs.id
+  }
+}
+
 resource aiAccount 'Microsoft.CognitiveServices/accounts@2025-06-01' = {
   name: !empty(existingAiAccountName) ? existingAiAccountName : 'ai-account-${resourceToken}'
   location: location
@@ -287,6 +297,8 @@ output aiServicesPrincipalId string = aiAccount.identity.principalId
 output projectName string = aiAccount::project.name
 output logAnalyticsWorkspaceName string = enableMonitoring ? logAnalytics!.outputs.name : ''
 output APPLICATIONINSIGHTS_CONNECTION_STRING string = enableMonitoring ? applicationInsights!.outputs.connectionString : ''
+output SUP_APPLICATIONINSIGHTS_CONNECTION_STRING string = enableMonitoring ? supplierApplicationInsights!.outputs.connectionString : ''
+output supApplicationInsightsName string = enableMonitoring ? supplierApplicationInsights!.outputs.name : ''
 
 output dependentResources object = {
   registry: {

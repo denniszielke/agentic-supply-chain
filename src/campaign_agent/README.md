@@ -106,3 +106,83 @@ Deploy the pipeline as three discrete, independently re-runnable steps:
 | `TOOLBOX_MCP_ENDPOINT` | Explicit toolbox MCP URL (overrides derived) | _optional_ |
 | `PRICING_MCP_URL` | Direct pricing MCP URL for local dev (bypasses toolbox) | _optional_ |
 | `PORT` | Hosted agent server port | `8088` |
+
+## Register with Agent 365 (observability)
+
+Foundry hosted agents export OpenTelemetry traces to the
+[Agent 365](https://learn.microsoft.com/en-us/azure/foundry/agents/concepts/agent-365-integration)
+control plane.  For this to work the agent's **managed identity** must hold the
+`Agent365.Observability.OtelWrite` app role.  Without it you will see HTTP 403
+errors from the `microsoft.opentelemetry.a365` exporter at runtime.
+
+### Prerequisites
+
+- Azure CLI (`az`) logged in with at least **Application Administrator** or
+  **Global Administrator** role.
+- The agent is deployed and its managed-identity service-principal Object ID is
+  known (printed by `deploy_campaign_agent.py`, or look it up with
+  `az ml online-endpoint show`).
+- Your tenant has a valid **Microsoft 365 Copilot** license and Agent 365 has
+  been enabled by a Global Administrator in the
+  [Microsoft 365 admin center](https://admin.microsoft.com/).
+- Register the `Microsoft.BotService` resource provider if not already done:
+
+  ```bash
+  az provider register --namespace Microsoft.BotService --wait
+  az provider show --namespace Microsoft.BotService --query registrationState
+  ```
+
+### Steps
+
+1. **Find the `Agent365Observability` service-principal ID** in your tenant:
+
+   ```bash
+   az rest --method GET \
+     --uri "https://graph.microsoft.com/v1.0/servicePrincipals?\$filter=displayName eq 'Agent365Observability'" \
+     --query "value[0].id" -o tsv
+   ```
+
+   Save this value as `<AGENT365_SP_ID>`.
+
+2. **Get the agent's managed-identity Object ID** (the `principalId`):
+
+   ```bash
+   # If deployed via deploy_campaign_agent.py the principal ID is printed on deploy.
+   # Otherwise look it up:
+   az ml online-endpoint show \
+     --name campaign-planner \
+     --resource-group <AZURE_RESOURCE_GROUP> \
+     --workspace-name <FOUNDRY_PROJECT_NAME> \
+     --query identity.principalId -o tsv
+   ```
+
+   Save this as `<AGENT_PRINCIPAL_ID>`.
+
+3. **Assign the `OtelWrite` app role** (fixed role GUID shown below):
+
+   ```bash
+   az rest --method POST \
+     --uri "https://graph.microsoft.com/v1.0/servicePrincipals/<AGENT_PRINCIPAL_ID>/appRoleAssignments" \
+     --body '{
+       "principalId": "e3d914ac-0e53-4e9f-95d0-10b2139b2d29",
+       "resourceId": "bc541349-5c7a-4f6a-90b5-64257db03675",
+       "appRoleId": "8f71190c-00c8-461d-a63b-f74abde9ba52"
+     }'
+
+az rest --method POST --uri "https://graph.microsoft.com/v1.0/servicePrincipals/$AGENT_PRINCIPAL_ID/appRoleAssignments" --headers "Content-Type=application/json" --body "{"principalId":"$AGENT_PRINCIPAL_ID","resourceId":"$A365_SP_ID","appRoleId":"$OTEL_WRITE_ROLE_ID"}"
+
+   ```
+
+   
+
+4. **Verify** the assignment was created:
+
+   ```bash
+   az rest --method GET \
+     --uri "https://graph.microsoft.com/v1.0/servicePrincipals/<AGENT_PRINCIPAL_ID>/appRoleAssignments" \
+     --query "value[?appRoleId=='8f71190c-00c8-461d-a63b-f74abde9ba52']"
+   ```
+
+   You should see one entry with `"principalDisplayName"` matching the agent's
+   managed identity.  After a few minutes the exporter stops logging 403 errors
+   and telemetry begins flowing into Agent 365.
