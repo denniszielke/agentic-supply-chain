@@ -237,6 +237,83 @@ Key overrides:
 
 ---
 
+## 6b. Campaign A365 *Autopilot* Digital Worker
+
+This is a **separate deployment path** from §6. Instead of a RESPONSES-protocol
+hosted agent, it publishes the campaign planner as an **Agent 365 autopilot /
+digital worker** (activity protocol, bot-relayed, hireable in Microsoft 365).
+Source lives in [src/campaign_a365_agent](../../../src/campaign_a365_agent) and
+the Python step scripts in [scripts/autopilot](../../../scripts/autopilot).
+
+Prerequisites: `azd up` has run (so `./.env` has `AZURE_AI_PROJECT_ENDPOINT`,
+`AZURE_CONTAINER_REGISTRY_ENDPOINT`, `AZURE_RESOURCE_GROUP`, etc.) and you are
+logged in with `az login` as **Owner** on the subscription.
+
+### One-shot wrapper (recommended)
+
+Runs the whole pipeline: provision autopilot infra → remote ACR build → create
+agent version → publish digital worker → OAuth2 grants → add blueprint owner.
+
+```bash
+python -m scripts.deploy_campaign_autopilot
+```
+
+Useful flags:
+- `--skip-infra --blueprint-id <id>` — reuse an existing blueprint, skip bicep
+- `--configure-backend` — also PUT the Teams Developer Portal backend config
+  (needs `az login --scope https://dev.teams.microsoft.com/.default`)
+
+### What the wrapper provisions
+
+`provision_infra` runs three things (MAIB creation + role grants are done in
+Python, **not** bicep — see note below):
+1. **MAIB** — `create_maib.py` PUTs a **Managed Agent Identity Blueprint** via
+   the Foundry data-plane API and returns its client id.
+2. **Project roles** — `grant_project_roles.py` grants the existing project
+   system identity **AcrPull** on the registry + **Cognitive Services User** on
+   the account (tolerating assignments `azd` already created).
+3. **Bot service** — `infra/autopilot/main.bicep` (resourceGroup scope) deploys
+   an **Azure Bot + Teams channel**, `msaAppId` = blueprint client id,
+   endpoint = the agent's `activityProtocol` endpoint. References the existing
+   account/project — it does not recreate them.
+
+> **Why no deployment script?** The Foundry sample created the MAIB from an
+> `AzurePowerShell` deploymentScript, which requires a *key-based* storage
+> account. That is blocked by policy in some tenants
+> (`KeyBasedAuthenticationNotPermitted`), so MAIB creation was moved into Python.
+> `azd` also already grants AcrPull to the project identity, which made the
+> bicep role assignment fail with `RoleAssignmentExists` — hence the Python grant.
+
+### Running steps individually
+
+Each step is also runnable standalone (all read `./.env`):
+
+```bash
+python -m scripts.autopilot.create_maib                # → AGENT_IDENTITY_BLUEPRINT_ID
+python -m scripts.autopilot.grant_project_roles        # AcrPull + Cognitive Services User
+python -m scripts.autopilot.provision_infra            # the above two + bot service bicep
+AGENT_IDENTITY_BLUEPRINT_ID=<id> python -m scripts.autopilot.build_image
+python -m scripts.autopilot.create_agent               # → AGENT_GUID
+AGENT_GUID=<g> AGENT_IDENTITY_BLUEPRINT_ID=<id> python -m scripts.autopilot.publish_digital_worker
+AGENT_IDENTITY_BLUEPRINT_ID=<id> python -m scripts.autopilot.create_oauth2_grants
+AGENT_IDENTITY_BLUEPRINT_ID=<id> python -m scripts.autopilot.add_blueprint_owner
+AGENT_IDENTITY_BLUEPRINT_ID=<id> python -m scripts.autopilot.configure_blueprint_backend  # optional
+```
+
+Key overrides:
+- `AZURE_AI_CAMPAIGN_AGENT_NAME` — agent name (default: `campaign-a365-agent`)
+- `MAIB_NAME` — blueprint name (default: `<agent>-maib`)
+- `CAMPAIGN_A365_IMAGE_NAME` — image repo (default: `campaign-a365-agent`)
+- `AZURE_OPENAI_ENDPOINT` / `AZURE_OPENAI_CHAT_DEPLOYMENT_NAME` — model the agent calls
+
+### After deployment
+
+Approve the blueprint in the Microsoft 365 admin center
+(`https://admin.cloud.microsoft/?#/agents/all/requested`), configure it in the
+Teams Developer Portal, then create agent instances in Teams.
+
+---
+
 ## 7. Deploy All Hosted Agents (shopping + campaign together)
 
 ```bash
