@@ -88,6 +88,7 @@ Images built:
 - `shopping-agent` — from `src/shopping_agent/Dockerfile`
 - `pricing-mcp-server` — from `src/pricing_mcp_server/Dockerfile`
 - `campaign-agent` — from `src/campaign_agent/Dockerfile`
+- `joule-agent` — from `src/joule_agent/Dockerfile`
 
 ---
 
@@ -373,6 +374,94 @@ The agent supports **RESPONSES**, **A2A** and **INVOCATIONS** protocols.
 
 ---
 
+## 8b. Joule-Agent Pipeline (two discrete steps)
+
+A standalone **A2A** server that simulates an **external SAP Joule** agent for ERP
+supply-side data (stock, open POs, supplier lead times). It runs as its own
+Container App — **not** a Foundry hosted agent — yet is **registered in the Foundry
+control plane** with a managed **agent identity blueprint**, so it inherits the
+same identity and audit fabric. SKUs align with the pricing MCP server.
+
+Run these in order. Each is independently re-runnable.
+
+### Step 1 — Deploy the Joule A2A agent (external Container App, port 8092)
+
+```bash
+# Build image in ACR first, then deploy:
+python -m scripts.deploy_joule_agent --build
+
+# Deploy only (image already in ACR):
+python -m scripts.deploy_joule_agent
+```
+
+Prints the A2A agent-card URL, e.g.
+`https://joule-agent.<env-default-domain>/.well-known/agent-card.json`
+
+Key overrides:
+- `JOULE_AGENT_APP_NAME` — Container App name (default: `joule-agent`)
+- `JOULE_AGENT_PORT` — container port (default: `8092`)
+- `JOULE_AGENT_EXTERNAL=false` — internal ingress (default: `true`; A2A callers need external)
+- `JOULE_PUBLIC_URL` — override the URL advertised in the agent card (default: derived from FQDN)
+
+### Preflight — check prerequisites (green/red, exit 0/1)
+
+```bash
+python -m scripts.preflight_joule_agent            # read-only checks
+python -m scripts.preflight_joule_agent --probe     # also probe the A2A preview (creates+deletes a throwaway version)
+```
+
+Checks Foundry endpoint + auth, Joule Agent Card + `/health` reachable,
+`JOULE_BLUEPRINT_ID` set (best-effort Entra/Graph lookup), a RemoteA2A connection
+exists, and (with `--probe`) that the A2A preview is accepted.
+
+### Step 2 — Register the agent in the Foundry control plane
+
+```bash
+python -m scripts.register_joule_agent --dry-run   # print payload, no Azure calls
+JOULE_BLUEPRINT_ID=<entra-agent-id-blueprint> python -m scripts.register_joule_agent
+```
+
+Derives the A2A URL from the Container App FQDN (`AZURE_RESOURCE_GROUP`), or set
+`JOULE_AGENT_URL` explicitly. The script follows the documented **A2A tool**
+pattern — it creates a Foundry prompt agent whose tool is an `A2APreviewTool`
+pointing at Joule, so other Foundry agents can call it. The **recommended** binding
+is a `RemoteA2A` project connection (`JOULE_A2A_CONNECTION_NAME`) that stores the
+endpoint target + auth (incl. `AgenticIdentity` / Entra Agent ID).
+
+Key overrides:
+- `JOULE_AGENT_NAME` — Foundry agent name (default: `joule-agent`)
+- `JOULE_A2A_CONNECTION_NAME` — RemoteA2A connection name (recommended)
+- `JOULE_CONNECTION_ID` — explicit connection id (alternative to the name)
+- `JOULE_AGENT_URL` — explicit A2A base URL (only without a RemoteA2A connection)
+- `JOULE_BLUEPRINT_ID` — **agent identity blueprint appId (Entra Agent ID)** — the central identity input; create via Entra ID → Agents → Agent blueprints (or Graph)
+- `JOULE_AGENT_CARD_PATH` — agent-card path (default: `/.well-known/agent-card.json`)
+- `JOULE_PREVIEW_FEATURES` — `Foundry-Features` opt-in header (default: `AgentEndpoints=V1Preview`; try `ExternalAgents=V1Preview`)
+
+> **Verified vs. official docs (public preview).** The A2A *tool* (call Joule from
+> a Foundry agent) is documented + public preview:
+> [agent-to-agent tool](https://learn.microsoft.com/azure/foundry/agents/how-to/tools/agent-to-agent).
+> Governing Joule as a control-plane **asset** (proxy URL + observability) is a
+> **portal** step that **requires an AI gateway (Azure API Management)** on the
+> Foundry resource:
+> [register-custom-agent](https://learn.microsoft.com/azure/foundry/control-plane/register-custom-agent)
+> — not performed by the script. Run `--dry-run` first. Needs Foundry RBAC
+> (Contributor/Owner + Foundry User).
+
+### Step 3 (optional) — Govern Joule as a control-plane asset (portal)
+
+```bash
+python -m scripts.register_joule_asset   # checks prerequisites + prints exact portal wizard values
+```
+
+Adds a proxy URL (via APIM), access control and observability. Portal-only
+(Foundry (new) → Operate → Register asset, Protocol = A2A) and **requires an AI
+gateway (Azure API Management)** on the Foundry resource — there is no API. The
+helper checks the endpoint, APIM (best-effort, needs `AZURE_RESOURCE_GROUP`) and
+App Insights, then prints the values to paste. Override the OpenTelemetry agent id
+with `JOULE_OTEL_AGENT_ID` (default: agent name).
+
+---
+
 ## 9. Run Services Locally
 
 <!-- NOTE: sections 9-12 are renumbered; was 8-11 before Promotion Agent Pipeline was added -->
@@ -382,6 +471,13 @@ The agent supports **RESPONSES**, **A2A** and **INVOCATIONS** protocols.
 python -m src.pricing_mcp_server.server
 # serves http://127.0.0.1:8091/mcp
 # override: PRICING_MCP_HOST / PRICING_MCP_PORT
+```
+
+### Joule A2A agent (simulated SAP Joule)
+```bash
+python -m src.joule_agent.server
+# serves A2A on http://0.0.0.0:8092 (card at /.well-known/agent-card.json)
+# override: JOULE_AGENT_HOST / JOULE_AGENT_PORT / JOULE_PUBLIC_URL
 ```
 
 ### Campaign planning agent
@@ -474,6 +570,16 @@ All variables are written to `./.env` by `azd up`.
 | `PROMOTION_TOOLBOX_MCP_URL` | manual | explicit promotion toolbox MCP URL (optional) |
 | `PROMOTION_MCP_CONNECTION_ID` | manual | Foundry connection ID for restricted toolbox (optional) |
 | `AZURE_AI_PROMOTION_AGENT_NAME` | manual | default: `promotion-agent` |
+| `JOULE_AGENT_APP_NAME` | manual | default: `joule-agent` |
+| `JOULE_AGENT_PORT` | manual | default: `8092` |
+| `JOULE_AGENT_EXTERNAL` | manual | `false` for internal ingress (default: `true`) |
+| `JOULE_PUBLIC_URL` | manual | URL advertised in the agent card (default: derived from FQDN) |
+| `JOULE_AGENT_NAME` | manual | control-plane agent name (default: `joule-agent`) |
+| `JOULE_A2A_CONNECTION_NAME` | manual | RemoteA2A project connection name (recommended) |
+| `JOULE_AGENT_URL` | manual | explicit A2A base URL (only without a RemoteA2A connection) |
+| `JOULE_BLUEPRINT_ID` | manual | agent identity blueprint appId (Entra Agent ID) — central identity input |
+| `JOULE_CONNECTION_ID` | manual | explicit RemoteA2A connection id (optional) |
+| `JOULE_PREVIEW_FEATURES` | manual | `Foundry-Features` opt-in header (default: `AgentEndpoints=V1Preview`) |
 
 ---
 
@@ -486,6 +592,7 @@ All variables are written to `./.env` by `azd up`.
 - Image builds use `az acr build` (no local Docker). Both `:<timestamp>` and
   `:latest` tags are pushed on every build.
 - Hosted agents speak the **RESPONSES protocol** on port `8088` (campaign) /
-  `8090` (shopping).
+  `8090` (shopping). The simulated SAP Joule agent speaks **A2A** on port `8092`
+  and runs **external** by default (A2A callers must reach it).
 - The pricing MCP server is **internal by default** (no public ingress). Set
   `PRICING_MCP_EXTERNAL=true` only when Foundry needs to reach it directly.

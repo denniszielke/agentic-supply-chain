@@ -1,0 +1,862 @@
+{
+  "meta": {
+    "source": "synthetic-sap-erp-supply",
+    "description": "Synthetic SAP/ERP supply-side master data simulating the SAP Joule agent. All values are fictional. Supplier names are invented and do not refer to any real company.",
+    "snapshot_date": "2026-06-16",
+    "currency": "EUR"
+  },
+  "products": [
+    {
+      "sku": "AS-OG-001",
+      "product_name": "Wassermelone lose",
+      "category_id": "obst-gemuese",
+      "unit_of_measure": "EA",
+      "supplier": {
+        "vendor_id": "V-1001",
+        "name": "Sudfrucht Kontor Sud eG",
+        "country": "ES",
+        "lead_time_days": 4
+      },
+      "dc_plant": "DC-SUED-01",
+      "stock_on_hand_units": 70200,
+      "safety_stock_units": 15569,
+      "in_transit_units": 14742,
+      "weekly_inbound_units": 23920,
+      "baseline_weekly_demand_units": 26000,
+      "open_purchase_orders": [
+        {
+          "po_number": "PO-45000",
+          "quantity_units": 33228,
+          "expected_delivery_date": "2026-06-24",
+          "status": "in_production"
+        },
+        {
+          "po_number": "PO-45001",
+          "quantity_units": 18167,
+          "expected_delivery_date": "2026-06-29",
+          "status": "in_production"
+        }
+      ]
+    },
+    {
+      "sku": "AS-OG-002",
+      "product_name": "Stangenspargel 330g",
+      "category_id": "obst-gemuese",
+      "unit_of_measure": "EA",
+      "supplier": {
+        "vendor_id": "V-1001",
+        "name": "Sudfrucht Kontor Sud eG",
+        "country": "ES",
+        "lead_time_days": 4
+      },
+      "dc_plant": "DC-SUED-02",
+      "stock_on_hand_units": 20735,
+      "safety_stock_units": 6529,
+      "in_transit_units": 10687,
+      "weekly_inbound_units": 14672,
+      "baseline_weekly_demand_units": 14500,
+      "open_purchase_orders": [
+        {
+          "po_number": "PO-45007",
+          "quantity_units": 9390,
+          "expected_delivery_date": "2026-06-24",
+          "status": "in_production"
+        }
+      ]
+    },
+    {
+      "sku": "AS-OG-003",
+      "product_name": "Erdbeeren 500g Schale",
+      "category_id": "obst-gemuese",
+      "unit_of_measure": "EA",
+      "supplier": {
+        "vendor_id": "V-1001",
+        "name": "Sudfrucht Kontor Sud eG",
+        "country": "ES",
+        "lead_time_days": 4
+      },
+      "dc_plant": "DC-WEST-03",
+      "stock_on_hand_units": 50820,
+      "safety_stock_units": 8631,
+      "in_transit_units": 14220,
+      "weekly_inbound_units": 20423,
+      "baseline_weekly_demand_units": 21000,
+      "open_purchase_orders": [
+        {
+          "po_number": "PO-45014",
+          "quantity_units": 13065,
+          "expected_delivery_date": "2026-06-24",
+          "status": "confirmed"
+        }
+      ]
+    },
+    {
+      "sku": "AS-OG-004",
+      "product_name": "Bananen lose",
+      "category_id": "obst-gemuese",
+      "unit_of_measure": "EA",
+      "supplier": {
+        "vendor_id": "V-1001",
+        "name": "Sudfrucht Kontor Sud eG",
+        "country": "ES",
+        "lead_time_days": 4
+      },
+      "dc_plant": "DC-SUED-01",
+      "stock_on_hand_units": 95370,
+      "safety_stock_units": 12444,
+      "in_transit_units": 13376,
+      "weekly_inbound_units": 36541,
+      "baseline_weekly_demand_units": 33000,
+      "open_purchase_orders": [
+        {
+          "po_number": "PO-45021",
+          "quantity_units": 21896,
+          "expected_delivery_date": "2026-06-24",
+          "status": "confirmed"
+        }
+      ]
+    },
+    {
+      "sku": "AS-OG-005",
+      "product_name": "Snack-Tomaten 250g",
+      "category_id": "obst-gemuese",
+      "unit_of_measure": "EA",
+      "supplier": {
+        "vendor_id": "V-1001",
+        "name": "Sudfrucht Kontor Sud eG",
+        "country": "ES",
+        "lead_time_days": 4
+      },
+      "dc_plant": "DC-SUED-02",
+      "stock_on_hand_units": 18375,
+      "safety_stock_units": 6031,
+      "in_transit_units": 11030,
+      "weekly_inbound_units": 12636,
+      "baseline_weekly_demand_units": 12500,
+      "open_purchase_orders": [
+        {
+          "po_number": "PO-45028",
+          "quantity_units": 13747,
+          "expected_delivery_date": "2026-06-26",
+          "status": "in_production"
+        }
+      ]
+    },
+    {
+      "sku": "AS-FW-001",
+      "product_name": "Hähnchenbrustfilet 400g",
+      "category_id": "fleisch-wurst",
+      "unit_of_measure": "EA",
+      "supplier": {
+        "vendor_id": "V-1002",
+        "name": "Fleischwerk Mitte GmbH",
+        "country": "DE",
+        "lead_time_days": 3
+      },
+      "dc_plant": "DC-WEST-03",
+      "stock_on_hand_units": 26325,
+      "safety_stock_units": 9764,
+      "in_transit_units": 9802,
+      "weekly_inbound_units": 17513,
+      "baseline_weekly_demand_units": 19500,
+      "open_purchase_orders": [
+        {
+          "po_number": "PO-45035",
+          "quantity_units": 12411,
+          "expected_delivery_date": "2026-06-24",
+          "status": "confirmed"
+        },
+        {
+          "po_number": "PO-45036",
+          "quantity_units": 22607,
+          "expected_delivery_date": "2026-06-30",
+          "status": "confirmed"
+        }
+      ]
+    },
+    {
+      "sku": "AS-FW-002",
+      "product_name": "Rinderhackfleisch 500g",
+      "category_id": "fleisch-wurst",
+      "unit_of_measure": "EA",
+      "supplier": {
+        "vendor_id": "V-1002",
+        "name": "Fleischwerk Mitte GmbH",
+        "country": "DE",
+        "lead_time_days": 3
+      },
+      "dc_plant": "DC-SUED-01",
+      "stock_on_hand_units": 25810,
+      "safety_stock_units": 7501,
+      "in_transit_units": 4695,
+      "weekly_inbound_units": 17797,
+      "baseline_weekly_demand_units": 17800,
+      "open_purchase_orders": [
+        {
+          "po_number": "PO-45042",
+          "quantity_units": 19496,
+          "expected_delivery_date": "2026-06-21",
+          "status": "confirmed"
+        }
+      ]
+    },
+    {
+      "sku": "AS-FW-003",
+      "product_name": "Bratwurst 400g",
+      "category_id": "fleisch-wurst",
+      "unit_of_measure": "EA",
+      "supplier": {
+        "vendor_id": "V-1002",
+        "name": "Fleischwerk Mitte GmbH",
+        "country": "DE",
+        "lead_time_days": 3
+      },
+      "dc_plant": "DC-SUED-02",
+      "stock_on_hand_units": 47880,
+      "safety_stock_units": 7524,
+      "in_transit_units": 11843,
+      "weekly_inbound_units": 14623,
+      "baseline_weekly_demand_units": 15200,
+      "open_purchase_orders": [
+        {
+          "po_number": "PO-45049",
+          "quantity_units": 18492,
+          "expected_delivery_date": "2026-06-22",
+          "status": "in_production"
+        },
+        {
+          "po_number": "PO-45050",
+          "quantity_units": 14992,
+          "expected_delivery_date": "2026-06-28",
+          "status": "confirmed"
+        },
+        {
+          "po_number": "PO-45051",
+          "quantity_units": 12169,
+          "expected_delivery_date": "2026-07-01",
+          "status": "confirmed"
+        }
+      ]
+    },
+    {
+      "sku": "AS-FW-004",
+      "product_name": "Salami Aufschnitt 100g",
+      "category_id": "fleisch-wurst",
+      "unit_of_measure": "EA",
+      "supplier": {
+        "vendor_id": "V-1002",
+        "name": "Fleischwerk Mitte GmbH",
+        "country": "DE",
+        "lead_time_days": 3
+      },
+      "dc_plant": "DC-WEST-03",
+      "stock_on_hand_units": 29050,
+      "safety_stock_units": 6403,
+      "in_transit_units": 5607,
+      "weekly_inbound_units": 15293,
+      "baseline_weekly_demand_units": 13900,
+      "open_purchase_orders": [
+        {
+          "po_number": "PO-45056",
+          "quantity_units": 18780,
+          "expected_delivery_date": "2026-06-23",
+          "status": "confirmed"
+        },
+        {
+          "po_number": "PO-45057",
+          "quantity_units": 18472,
+          "expected_delivery_date": "2026-06-29",
+          "status": "in_production"
+        },
+        {
+          "po_number": "PO-45058",
+          "quantity_units": 18186,
+          "expected_delivery_date": "2026-07-01",
+          "status": "confirmed"
+        }
+      ]
+    },
+    {
+      "sku": "AS-ME-001",
+      "product_name": "Frischkäse 125g",
+      "category_id": "milchprodukte-eier",
+      "unit_of_measure": "EA",
+      "supplier": {
+        "vendor_id": "V-1003",
+        "name": "Molkerei Genossenschaft Sud",
+        "country": "DE",
+        "lead_time_days": 2
+      },
+      "dc_plant": "DC-SUED-01",
+      "stock_on_hand_units": 38710,
+      "safety_stock_units": 10561,
+      "in_transit_units": 10424,
+      "weekly_inbound_units": 23975,
+      "baseline_weekly_demand_units": 24500,
+      "open_purchase_orders": [
+        {
+          "po_number": "PO-45063",
+          "quantity_units": 22000,
+          "expected_delivery_date": "2026-06-22",
+          "status": "confirmed"
+        },
+        {
+          "po_number": "PO-45064",
+          "quantity_units": 20296,
+          "expected_delivery_date": "2026-06-28",
+          "status": "confirmed"
+        }
+      ]
+    },
+    {
+      "sku": "AS-ME-002",
+      "product_name": "Naturjoghurt 500g",
+      "category_id": "milchprodukte-eier",
+      "unit_of_measure": "EA",
+      "supplier": {
+        "vendor_id": "V-1003",
+        "name": "Molkerei Genossenschaft Sud",
+        "country": "DE",
+        "lead_time_days": 2
+      },
+      "dc_plant": "DC-SUED-02",
+      "stock_on_hand_units": 54720,
+      "safety_stock_units": 13270,
+      "in_transit_units": 8309,
+      "weekly_inbound_units": 26181,
+      "baseline_weekly_demand_units": 28800,
+      "open_purchase_orders": [
+        {
+          "po_number": "PO-45070",
+          "quantity_units": 23686,
+          "expected_delivery_date": "2026-06-24",
+          "status": "confirmed"
+        }
+      ]
+    },
+    {
+      "sku": "AS-ME-003",
+      "product_name": "Gouda jung 400g",
+      "category_id": "milchprodukte-eier",
+      "unit_of_measure": "EA",
+      "supplier": {
+        "vendor_id": "V-1003",
+        "name": "Molkerei Genossenschaft Sud",
+        "country": "DE",
+        "lead_time_days": 2
+      },
+      "dc_plant": "DC-WEST-03",
+      "stock_on_hand_units": 35260,
+      "safety_stock_units": 8624,
+      "in_transit_units": 5888,
+      "weekly_inbound_units": 14707,
+      "baseline_weekly_demand_units": 16400,
+      "open_purchase_orders": [
+        {
+          "po_number": "PO-45077",
+          "quantity_units": 16359,
+          "expected_delivery_date": "2026-06-23",
+          "status": "confirmed"
+        },
+        {
+          "po_number": "PO-45078",
+          "quantity_units": 19618,
+          "expected_delivery_date": "2026-06-26",
+          "status": "confirmed"
+        },
+        {
+          "po_number": "PO-45079",
+          "quantity_units": 19223,
+          "expected_delivery_date": "2026-06-29",
+          "status": "confirmed"
+        }
+      ]
+    },
+    {
+      "sku": "AS-ME-004",
+      "product_name": "Eier Bodenhaltung 10er",
+      "category_id": "milchprodukte-eier",
+      "unit_of_measure": "EA",
+      "supplier": {
+        "vendor_id": "V-1003",
+        "name": "Molkerei Genossenschaft Sud",
+        "country": "DE",
+        "lead_time_days": 2
+      },
+      "dc_plant": "DC-SUED-01",
+      "stock_on_hand_units": 34918,
+      "safety_stock_units": 9915,
+      "in_transit_units": 11800,
+      "weekly_inbound_units": 19239,
+      "baseline_weekly_demand_units": 22100,
+      "open_purchase_orders": [
+        {
+          "po_number": "PO-45084",
+          "quantity_units": 17211,
+          "expected_delivery_date": "2026-06-24",
+          "status": "confirmed"
+        },
+        {
+          "po_number": "PO-45085",
+          "quantity_units": 28297,
+          "expected_delivery_date": "2026-06-30",
+          "status": "in_production"
+        },
+        {
+          "po_number": "PO-45086",
+          "quantity_units": 24041,
+          "expected_delivery_date": "2026-07-05",
+          "status": "confirmed"
+        }
+      ]
+    },
+    {
+      "sku": "AS-ME-005",
+      "product_name": "Deutsche Markenbutter 250g",
+      "category_id": "milchprodukte-eier",
+      "unit_of_measure": "EA",
+      "supplier": {
+        "vendor_id": "V-1003",
+        "name": "Molkerei Genossenschaft Sud",
+        "country": "DE",
+        "lead_time_days": 2
+      },
+      "dc_plant": "DC-SUED-02",
+      "stock_on_hand_units": 83037,
+      "safety_stock_units": 9899,
+      "in_transit_units": 23190,
+      "weekly_inbound_units": 25944,
+      "baseline_weekly_demand_units": 26700,
+      "open_purchase_orders": [
+        {
+          "po_number": "PO-45091",
+          "quantity_units": 36121,
+          "expected_delivery_date": "2026-06-21",
+          "status": "confirmed"
+        }
+      ]
+    },
+    {
+      "sku": "AS-BW-001",
+      "product_name": "Frische Waffeln 12er",
+      "category_id": "backwaren",
+      "unit_of_measure": "EA",
+      "supplier": {
+        "vendor_id": "V-1004",
+        "name": "Backwaren Manufaktur Bayern",
+        "country": "DE",
+        "lead_time_days": 1
+      },
+      "dc_plant": "DC-WEST-03",
+      "stock_on_hand_units": 37760,
+      "safety_stock_units": 4364,
+      "in_transit_units": 3894,
+      "weekly_inbound_units": 12083,
+      "baseline_weekly_demand_units": 11800,
+      "open_purchase_orders": [
+        {
+          "po_number": "PO-45098",
+          "quantity_units": 7441,
+          "expected_delivery_date": "2026-06-22",
+          "status": "in_production"
+        }
+      ]
+    },
+    {
+      "sku": "AS-BW-002",
+      "product_name": "Mehrkornbrötchen 6er",
+      "category_id": "backwaren",
+      "unit_of_measure": "EA",
+      "supplier": {
+        "vendor_id": "V-1004",
+        "name": "Backwaren Manufaktur Bayern",
+        "country": "DE",
+        "lead_time_days": 1
+      },
+      "dc_plant": "DC-SUED-01",
+      "stock_on_hand_units": 37758,
+      "safety_stock_units": 8432,
+      "in_transit_units": 16694,
+      "weekly_inbound_units": 18634,
+      "baseline_weekly_demand_units": 18600,
+      "open_purchase_orders": [
+        {
+          "po_number": "PO-45105",
+          "quantity_units": 20244,
+          "expected_delivery_date": "2026-06-23",
+          "status": "confirmed"
+        },
+        {
+          "po_number": "PO-45106",
+          "quantity_units": 13411,
+          "expected_delivery_date": "2026-06-25",
+          "status": "confirmed"
+        },
+        {
+          "po_number": "PO-45107",
+          "quantity_units": 14857,
+          "expected_delivery_date": "2026-06-29",
+          "status": "confirmed"
+        }
+      ]
+    },
+    {
+      "sku": "AS-BW-003",
+      "product_name": "Toastbrot 500g",
+      "category_id": "backwaren",
+      "unit_of_measure": "EA",
+      "supplier": {
+        "vendor_id": "V-1004",
+        "name": "Backwaren Manufaktur Bayern",
+        "country": "DE",
+        "lead_time_days": 1
+      },
+      "dc_plant": "DC-SUED-02",
+      "stock_on_hand_units": 63240,
+      "safety_stock_units": 9676,
+      "in_transit_units": 8209,
+      "weekly_inbound_units": 17858,
+      "baseline_weekly_demand_units": 20400,
+      "open_purchase_orders": [
+        {
+          "po_number": "PO-45112",
+          "quantity_units": 23720,
+          "expected_delivery_date": "2026-06-19",
+          "status": "in_production"
+        }
+      ]
+    },
+    {
+      "sku": "AS-SS-001",
+      "product_name": "Erdnuss-Locken 175g",
+      "category_id": "suesswaren-snacks",
+      "unit_of_measure": "EA",
+      "supplier": {
+        "vendor_id": "V-1005",
+        "name": "Snackwerk Rhein-Main",
+        "country": "DE",
+        "lead_time_days": 6
+      },
+      "dc_plant": "DC-WEST-03",
+      "stock_on_hand_units": 56165,
+      "safety_stock_units": 10868,
+      "in_transit_units": 17614,
+      "weekly_inbound_units": 26629,
+      "baseline_weekly_demand_units": 23900,
+      "open_purchase_orders": [
+        {
+          "po_number": "PO-45119",
+          "quantity_units": 29928,
+          "expected_delivery_date": "2026-06-28",
+          "status": "confirmed"
+        }
+      ]
+    },
+    {
+      "sku": "AS-SS-002",
+      "product_name": "Schokoriegel Multipack 5x",
+      "category_id": "suesswaren-snacks",
+      "unit_of_measure": "EA",
+      "supplier": {
+        "vendor_id": "V-1005",
+        "name": "Snackwerk Rhein-Main",
+        "country": "DE",
+        "lead_time_days": 6
+      },
+      "dc_plant": "DC-SUED-01",
+      "stock_on_hand_units": 25972,
+      "safety_stock_units": 7335,
+      "in_transit_units": 13463,
+      "weekly_inbound_units": 15244,
+      "baseline_weekly_demand_units": 17200,
+      "open_purchase_orders": [
+        {
+          "po_number": "PO-45126",
+          "quantity_units": 14390,
+          "expected_delivery_date": "2026-06-27",
+          "status": "confirmed"
+        }
+      ]
+    },
+    {
+      "sku": "AS-SS-003",
+      "product_name": "Kartoffelchips 175g",
+      "category_id": "suesswaren-snacks",
+      "unit_of_measure": "EA",
+      "supplier": {
+        "vendor_id": "V-1005",
+        "name": "Snackwerk Rhein-Main",
+        "country": "DE",
+        "lead_time_days": 6
+      },
+      "dc_plant": "DC-SUED-02",
+      "stock_on_hand_units": 23760,
+      "safety_stock_units": 11425,
+      "in_transit_units": 8101,
+      "weekly_inbound_units": 20255,
+      "baseline_weekly_demand_units": 19800,
+      "open_purchase_orders": [
+        {
+          "po_number": "PO-45133",
+          "quantity_units": 20195,
+          "expected_delivery_date": "2026-06-27",
+          "status": "in_production"
+        },
+        {
+          "po_number": "PO-45134",
+          "quantity_units": 26641,
+          "expected_delivery_date": "2026-07-02",
+          "status": "confirmed"
+        }
+      ]
+    },
+    {
+      "sku": "AS-GE-001",
+      "product_name": "Mineralwasser 6x1L",
+      "category_id": "getraenke",
+      "unit_of_measure": "EA",
+      "supplier": {
+        "vendor_id": "V-1006",
+        "name": "Getranke Logistik Sud AG",
+        "country": "DE",
+        "lead_time_days": 5
+      },
+      "dc_plant": "DC-WEST-03",
+      "stock_on_hand_units": 47085,
+      "safety_stock_units": 8578,
+      "in_transit_units": 13386,
+      "weekly_inbound_units": 20798,
+      "baseline_weekly_demand_units": 21500,
+      "open_purchase_orders": [
+        {
+          "po_number": "PO-45140",
+          "quantity_units": 22505,
+          "expected_delivery_date": "2026-06-26",
+          "status": "confirmed"
+        },
+        {
+          "po_number": "PO-45141",
+          "quantity_units": 13283,
+          "expected_delivery_date": "2026-07-02",
+          "status": "in_production"
+        },
+        {
+          "po_number": "PO-45142",
+          "quantity_units": 17060,
+          "expected_delivery_date": "2026-07-08",
+          "status": "confirmed"
+        }
+      ]
+    },
+    {
+      "sku": "AS-GE-002",
+      "product_name": "Apfelschorle 1.5L",
+      "category_id": "getraenke",
+      "unit_of_measure": "EA",
+      "supplier": {
+        "vendor_id": "V-1006",
+        "name": "Getranke Logistik Sud AG",
+        "country": "DE",
+        "lead_time_days": 5
+      },
+      "dc_plant": "DC-SUED-01",
+      "stock_on_hand_units": 50700,
+      "safety_stock_units": 6441,
+      "in_transit_units": 12816,
+      "weekly_inbound_units": 14885,
+      "baseline_weekly_demand_units": 16900,
+      "open_purchase_orders": [
+        {
+          "po_number": "PO-45147",
+          "quantity_units": 14007,
+          "expected_delivery_date": "2026-06-26",
+          "status": "in_production"
+        },
+        {
+          "po_number": "PO-45148",
+          "quantity_units": 22630,
+          "expected_delivery_date": "2026-06-28",
+          "status": "confirmed"
+        }
+      ]
+    },
+    {
+      "sku": "AS-GE-003",
+      "product_name": "Cola 1L",
+      "category_id": "getraenke",
+      "unit_of_measure": "EA",
+      "supplier": {
+        "vendor_id": "V-1006",
+        "name": "Getranke Logistik Sud AG",
+        "country": "DE",
+        "lead_time_days": 5
+      },
+      "dc_plant": "DC-SUED-02",
+      "stock_on_hand_units": 49814,
+      "safety_stock_units": 12825,
+      "in_transit_units": 12891,
+      "weekly_inbound_units": 23432,
+      "baseline_weekly_demand_units": 24300,
+      "open_purchase_orders": [
+        {
+          "po_number": "PO-45154",
+          "quantity_units": 25608,
+          "expected_delivery_date": "2026-06-24",
+          "status": "in_production"
+        },
+        {
+          "po_number": "PO-45155",
+          "quantity_units": 28049,
+          "expected_delivery_date": "2026-06-29",
+          "status": "confirmed"
+        },
+        {
+          "po_number": "PO-45156",
+          "quantity_units": 27390,
+          "expected_delivery_date": "2026-07-04",
+          "status": "confirmed"
+        }
+      ]
+    },
+    {
+      "sku": "AS-HR-001",
+      "product_name": "Handspülmittel 500ml",
+      "category_id": "haushalt-reinigung",
+      "unit_of_measure": "EA",
+      "supplier": {
+        "vendor_id": "V-1007",
+        "name": "Haushalt & Chemie Werk",
+        "country": "DE",
+        "lead_time_days": 9
+      },
+      "dc_plant": "DC-WEST-03",
+      "stock_on_hand_units": 16756,
+      "safety_stock_units": 7615,
+      "in_transit_units": 7095,
+      "weekly_inbound_units": 13864,
+      "baseline_weekly_demand_units": 14200,
+      "open_purchase_orders": [
+        {
+          "po_number": "PO-45161",
+          "quantity_units": 9841,
+          "expected_delivery_date": "2026-06-27",
+          "status": "confirmed"
+        },
+        {
+          "po_number": "PO-45162",
+          "quantity_units": 18506,
+          "expected_delivery_date": "2026-07-03",
+          "status": "in_production"
+        },
+        {
+          "po_number": "PO-45163",
+          "quantity_units": 11568,
+          "expected_delivery_date": "2026-07-05",
+          "status": "confirmed"
+        }
+      ]
+    },
+    {
+      "sku": "AS-HR-002",
+      "product_name": "Waschmittel 20WL",
+      "category_id": "haushalt-reinigung",
+      "unit_of_measure": "EA",
+      "supplier": {
+        "vendor_id": "V-1007",
+        "name": "Haushalt & Chemie Werk",
+        "country": "DE",
+        "lead_time_days": 9
+      },
+      "dc_plant": "DC-SUED-01",
+      "stock_on_hand_units": 17248,
+      "safety_stock_units": 5726,
+      "in_transit_units": 7241,
+      "weekly_inbound_units": 10363,
+      "baseline_weekly_demand_units": 9800,
+      "open_purchase_orders": [
+        {
+          "po_number": "PO-45168",
+          "quantity_units": 5936,
+          "expected_delivery_date": "2026-06-29",
+          "status": "confirmed"
+        },
+        {
+          "po_number": "PO-45169",
+          "quantity_units": 6607,
+          "expected_delivery_date": "2026-07-04",
+          "status": "confirmed"
+        },
+        {
+          "po_number": "PO-45170",
+          "quantity_units": 12215,
+          "expected_delivery_date": "2026-07-08",
+          "status": "confirmed"
+        }
+      ]
+    },
+    {
+      "sku": "AS-HT-001",
+      "product_name": "Katzenfutter 12x100g",
+      "category_id": "haustierbedarf",
+      "unit_of_measure": "EA",
+      "supplier": {
+        "vendor_id": "V-1008",
+        "name": "Heimtier Nahrung GmbH",
+        "country": "NL",
+        "lead_time_days": 8
+      },
+      "dc_plant": "DC-SUED-02",
+      "stock_on_hand_units": 33561,
+      "safety_stock_units": 5409,
+      "in_transit_units": 10091,
+      "weekly_inbound_units": 10978,
+      "baseline_weekly_demand_units": 11300,
+      "open_purchase_orders": [
+        {
+          "po_number": "PO-45175",
+          "quantity_units": 6983,
+          "expected_delivery_date": "2026-06-28",
+          "status": "in_production"
+        }
+      ]
+    },
+    {
+      "sku": "AS-GP-001",
+      "product_name": "Blumenerde 40L",
+      "category_id": "garten-pflanzen",
+      "unit_of_measure": "EA",
+      "supplier": {
+        "vendor_id": "V-1009",
+        "name": "Garten & Erde Werk",
+        "country": "DE",
+        "lead_time_days": 12
+      },
+      "dc_plant": "DC-WEST-03",
+      "stock_on_hand_units": 12768,
+      "safety_stock_units": 3907,
+      "in_transit_units": 6597,
+      "weekly_inbound_units": 7316,
+      "baseline_weekly_demand_units": 7600,
+      "open_purchase_orders": [
+        {
+          "po_number": "PO-45182",
+          "quantity_units": 5430,
+          "expected_delivery_date": "2026-07-03",
+          "status": "confirmed"
+        },
+        {
+          "po_number": "PO-45183",
+          "quantity_units": 9857,
+          "expected_delivery_date": "2026-07-09",
+          "status": "in_production"
+        },
+        {
+          "po_number": "PO-45184",
+          "quantity_units": 5255,
+          "expected_delivery_date": "2026-07-11",
+          "status": "in_production"
+        }
+      ]
+    }
+  ]
+}

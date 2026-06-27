@@ -13,6 +13,7 @@ An agentic scenario that solves **supplier optimization for retail shopping**. W
 | **shopping_agent** | `src/shopping_agent` | Hosted agent with A2A-style HTTP API for shopping list optimization across current promotions |
 | **campaign_agent** | `src/campaign_agent` | Foundry **hosted agent** for the retail marketing team: reasons about margin optimization vs. competitor promotions, per category and shopping persona; consumes internal pricing via a Foundry toolbox |
 | **pricing_mcp_server** | `src/pricing_mcp_server` | MCP server exposing internal pricing data (procurement cost, weekly volume forecasts, margin), published as a Foundry toolbox and consumed by the campaign agent |
+| **joule_agent** | `src/joule_agent` | Standalone **A2A** server on Container Apps simulating an external **SAP Joule** agent for ERP supply-side data (stock, open POs, lead times). Not hosted in Foundry, but registered in the Foundry control plane with a managed **agent identity blueprint** |
 | **shared** | `src/shared` | Shared Pydantic data models (`Supplier`, `Category`, `Item`), shopping planner logic, and seed data |
 | **infra** | `infra` | Bicep templates for Azure deployment and AI Search vector schema |
 | **scripts** | `scripts` | Deployment, index, container build and lifecycle scripts |
@@ -57,6 +58,7 @@ agentic-supply-chain/
 │   ├── promotion_ingestion/      # Flyer processor  →  see src/promotion_ingestion/README.md
 │   ├── shopping_agent/           # A2A planning agent  →  see src/shopping_agent/README.md
 │   ├── pricing_mcp_server/       # Internal pricing MCP server  →  see src/pricing_mcp_server/README.md
+│   ├── joule_agent/              # Simulated SAP Joule A2A agent  →  see src/joule_agent/README.md
 │   └── campaign_agent/           # Campaign planning hosted agent  →  see src/campaign_agent/README.md
 ├── scripts/
 │   ├── build_containers.sh       # Build all images via az acr build
@@ -70,6 +72,10 @@ agentic-supply-chain/
 │   ├── deploy_pricing_mcp_server.py # Step 1: deploy the pricing MCP server Container App
 │   ├── register_pricing_toolbox.py  # Step 2: register the pricing MCP server as a Foundry toolbox
 │   ├── deploy_campaign_agent.py     # Step 3: deploy the campaign agent as a Foundry hosted agent
+│   ├── deploy_joule_agent.py        # Joule step 1: deploy the simulated SAP Joule A2A agent (external ACA app)
+│   ├── register_joule_agent.py      # Joule step 2: register it in the Foundry control plane (identity blueprint + A2A)
+│   ├── preflight_joule_agent.py     # Joule preflight: green/red check of prerequisites before registering
+│   ├── register_joule_asset.py      # Joule step 3 (optional): guided portal checklist for governed control-plane asset registration
 │   ├── deploy_hosted_agents.py   # Deploy the shopping and campaign agents as Foundry hosted agents
 │   ├── deploy_helpers.py         # Shared image-build / Foundry client helpers
 │   ├── delete_index.py           # Delete an Azure AI Search index (schema + data)
@@ -126,6 +132,20 @@ The pricing MCP server, its toolbox registration, its Agent 365 BYO registration
 | 2 | `python -m scripts.register_pricing_toolbox` | Register the deployed MCP server as a Foundry toolbox (`pricing-tools`); derives the URL from the Container App FQDN, or set `PRICING_MCP_URL` |
 | 2b | `python -m scripts.register_pricing_a365_tool` | Register the pricing MCP server as a BYO tool in Agent 365 (updates `ToolingManifest.json` **and** calls `a365 develop-mcp register-external-mcp-server`) |
 | 3 | `python -m scripts.deploy_campaign_agent` | Deploy the campaign planning agent as a Foundry hosted agent that consumes the toolbox |
+
+#### Joule-agent pipeline (two discrete steps)
+
+The simulated SAP Joule A2A agent is deployed as an external Container App, then
+registered in the Foundry control plane:
+
+| Step | Script | Purpose |
+|---|---|---|
+| 1 | `python -m scripts.deploy_joule_agent` | Deploy the A2A agent as an external Container App (`joule-agent`, port 8092) and print its agent-card URL |
+| 2 | `python -m scripts.register_joule_agent` | Register it in the Foundry control plane with a managed agent identity blueprint + external A2A endpoint; `--dry-run` prints the payload |
+
+Run `python -m scripts.preflight_joule_agent` (add `--probe`) between the two steps for a green/red check of the prerequisites (blueprint id, A2A endpoint reachable, RemoteA2A connection, A2A preview).
+
+Optional **step 3** — govern Joule as a control-plane **asset** (proxy URL + observability): `python -m scripts.register_joule_asset` prints a portal checklist with the exact wizard values. This is portal-only and needs an AI gateway (APIM) on the Foundry resource.
 
 ### Cleanup
 
@@ -315,6 +335,29 @@ Override any of the BYO registration parameters via environment variables:
 `scripts/deploy_hosted_agents.py` remains available to deploy the shopping and
 campaign agents together; step 3 above is the campaign-agent-only equivalent.
 
+### 2e. Deploy the simulated SAP Joule A2A agent (two discrete steps)
+
+The Joule agent simulates an **external, non-Microsoft** agent reached over **A2A**.
+It runs as its own Container App (it is **not** a Foundry hosted agent) yet is
+**registered in the Foundry control plane** with a managed **agent identity
+blueprint**, so it inherits the same identity and audit fabric. Run the two steps
+in order — each is independently re-runnable:
+
+```bash
+# Step 1 — deploy the A2A agent as an external Container App (port 8092)
+python -m scripts.deploy_joule_agent --build
+# prints the agent-card URL, e.g. https://joule-agent.<env-default-domain>/.well-known/agent-card.json
+
+# Step 2 — register it in the Foundry control plane (identity blueprint + external A2A endpoint).
+# The URL is derived from the Container App FQDN, or set JOULE_AGENT_URL explicitly.
+python -m scripts.register_joule_agent --dry-run   # inspect the payload first
+JOULE_BLUEPRINT_ID=<entra-agent-id-blueprint> python -m scripts.register_joule_agent
+```
+
+Registration uses Foundry **preview** features (`AgentEndpoints=V1Preview`,
+`a2a_preview`). Without `JOULE_BLUEPRINT_ID` the agent is registered but **without**
+the managed identity blueprint. See [`src/joule_agent/README.md`](src/joule_agent/README.md).
+
 ### 2c. Ingest a promotional flyer
 
 Runs the vision-model extraction pipeline against one or more PDF/image sources. By default the result is written to a JSON file:
@@ -398,6 +441,19 @@ Serves `http://127.0.0.1:8091/mcp`. Override the bind address with
 To deploy it to Azure Container Apps instead, run `python -m scripts.deploy_pricing_mcp_server`
 (step 1 of the [campaign-agent pipeline](#2d-deploy-the-campaign-agent-pipeline-three-discrete-steps)).
 
+**Simulated SAP Joule A2A agent:**
+
+A standalone A2A server simulating an external SAP Joule agent for ERP supply-side
+data. Loads synthetic data from [`src/joule_agent/joule_data.json`](src/joule_agent/joule_data.json).
+
+```bash
+python -m src.joule_agent.server
+```
+
+Serves the A2A Agent Card at `http://0.0.0.0:8092/.well-known/agent-card.json` and
+the JSON-RPC endpoint at `/`. Override with `JOULE_AGENT_HOST` / `JOULE_AGENT_PORT`;
+set `JOULE_PUBLIC_URL` to control the URL advertised in the card.
+
 **Campaign planning agent (Foundry hosted agent):**
 
 With the pricing MCP server running (above), start the campaign agent's RESPONSES
@@ -476,4 +532,5 @@ python -m unittest discover -s tests -v
 - [`src/promotion_ingestion/README.md`](src/promotion_ingestion/README.md)
 - [`src/shopping_agent/README.md`](src/shopping_agent/README.md)
 - [`src/pricing_mcp_server/README.md`](src/pricing_mcp_server/README.md)
+- [`src/joule_agent/README.md`](src/joule_agent/README.md)
 - [`src/campaign_agent/README.md`](src/campaign_agent/README.md)
