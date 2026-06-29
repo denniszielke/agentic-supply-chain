@@ -17,6 +17,14 @@ The agent grounds every recommendation in two evidence sources:
 | **Competitor promotions** | `search_competitor_promotions` | Public — the same `retail-items` Azure AI Search index that powers the consumer shopping agent |
 | **Internal pricing** | Pricing MCP tools (`get_product_pricing`, `simulate_price_change`, …) | Confidential — reachable through the [Pricing MCP server](../pricing_mcp_server/), consumed via a **Foundry toolbox** |
 
+It can also act on the finished plan through the **WorkIQ mail** tools
+(`workiq-mail`) — the Microsoft Agent 365 mail MCP server, consumed via a
+**Foundry toolbox** (`workiq-mail-tools`) — to read, search and send M365 mail on
+behalf of the signed-in user, e.g. to circulate the campaign brief to the
+marketing team. Mail is only sent on explicit request. Set
+`CAMPAIGN_WORKIQ_ENABLED=false` to detach the tool, or `WORKIQ_MCP_URL` to
+connect directly during local development.
+
 The pricing MCP server is **not** wired point-to-point. It is published as a
 **Foundry toolbox** (`pricing-tools`) and the agent connects to it through the
 project's toolbox MCP endpoint
@@ -78,7 +86,15 @@ Deploy the pipeline as three discrete, independently re-runnable steps:
    python -m scripts.register_pricing_toolbox
    ```
 
-3. Build and deploy this agent as a Foundry hosted agent:
+3. Register the WorkIQ mail MCP server as a Foundry toolbox
+   (`workiq-mail-tools`) so the agent can read, search and send M365 mail. Set
+   `WORKIQ_CONNECTION_ID` to a Foundry OAuth connection if the server needs one:
+
+   ```bash
+   python -m scripts.register_workiq_toolbox
+   ```
+
+4. Build and deploy this agent as a Foundry hosted agent:
 
    ```bash
    python -m scripts.deploy_campaign_agent
@@ -86,8 +102,9 @@ Deploy the pipeline as three discrete, independently re-runnable steps:
 
    This builds the image from [`Dockerfile`](./Dockerfile), creates a hosted
    agent version (RESPONSES protocol) and enables the RESPONSES / A2A /
-   INVOCATIONS endpoints. The deployed agent reads `PRICING_TOOLBOX_NAME` (and
-   no `PRICING_MCP_URL`), so it consumes pricing through the toolbox.
+   INVOCATIONS endpoints. The deployed agent reads `PRICING_TOOLBOX_NAME` and
+   `WORKIQ_TOOLBOX_NAME` (and no `PRICING_MCP_URL` / `WORKIQ_MCP_URL`), so it
+   consumes pricing and mail through the toolboxes.
 
    To deploy the shopping and campaign agents together instead, use
    `python -m scripts.deploy_hosted_agents`.
@@ -105,6 +122,10 @@ Deploy the pipeline as three discrete, independently re-runnable steps:
 | `PRICING_TOOLBOX_NAME` | Foundry toolbox wrapping the pricing MCP server | `pricing-tools` |
 | `TOOLBOX_MCP_ENDPOINT` | Explicit toolbox MCP URL (overrides derived) | _optional_ |
 | `PRICING_MCP_URL` | Direct pricing MCP URL for local dev (bypasses toolbox) | _optional_ |
+| `WORKIQ_TOOLBOX_NAME` | Foundry toolbox wrapping the WorkIQ mail MCP server | `workiq-mail-tools` |
+| `WORKIQ_TOOLBOX_MCP_ENDPOINT` | Explicit WorkIQ toolbox MCP URL (overrides derived) | _optional_ |
+| `WORKIQ_MCP_URL` | Direct WorkIQ MCP URL for local dev (bypasses toolbox) | _optional_ |
+| `CAMPAIGN_WORKIQ_ENABLED` | Attach the WorkIQ mail tool to the agent | `true` |
 | `PORT` | Hosted agent server port | `8088` |
 
 ## Register with Agent 365 (observability)

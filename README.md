@@ -2,7 +2,146 @@
 
 An agentic scenario that solves **supplier optimization for retail shopping**. Weekly promotional flyers from multiple supermarkets are ingested and indexed, then agents and MCP-capable apps help users plan optimal shopping tours across stores.
 
+
+## Narrative
+
+![narrative](./narrative.png)
+This project shows the potential of running agents in **Azure AI Foundry** that
+connect to enterprise assets and integrate with **Agent 365** agents and tools.
+A retail supply-chain scenario ties it together: weekly promotional flyers from
+many supermarkets are ingested, indexed and exposed as governed tools, then a
+set of agents — some hosted inside Foundry, some running externally — reason over
+that data for both shoppers and the retail marketing team.
+
+The architecture has four layers: a **grounding/data layer** (Azure AI Search +
+FoundryIQ knowledge base), a **tool layer** (MCP servers surfaced as Foundry
+toolboxes), an **agent layer** (Foundry hosted agents, an Agent 365 onboarded
+agent, and an external Agent Framework workflow), and a **control plane**
+(Foundry + Agent 365 for identity, governance and observability).
+
+### Grounding & Foundry data services
+
+- **Azure AI Search** holds three indexes — `retail-suppliers`,
+  `retail-categories`, `retail-items` — populated by the **promotion_ingestion**
+  job, which runs vision-model extraction over flyer PDFs/images and normalises
+  every offer into the shared `Supplier` / `Category` / `Item` model.
+- **FoundryIQ knowledge base** (`supply-chain-kb`) aggregates those three indexes
+  as knowledge sources (`retail-suppliers-ks`, `retail-categories-ks`,
+  `retail-items-ks`) to enable **agentic retrieval** — multi-hop reasoning across
+  suppliers, categories and items in a single query.
+- The **Foundry project** is the hub: it serves chat/embedding models through its
+  gateway via Entra ID (managed identity, no API keys), and hosts the agents,
+  toolboxes and knowledge base.
+
+### MCP servers and Foundry toolboxes
+
+Tools are published once as **Foundry toolboxes** (an Entra-authenticated MCP
+endpoint, `{project}/toolboxes/{name}/mcp?api-version=v1`) so they are discovered
+and governed centrally rather than wired point-to-point:
+
+- **`shopping-tools`** — wraps the three AI Search indexes as `supplier-search`,
+  `category-search`, `item-search` (registered by
+  `scripts/register_shopping_toolbox.py`). Consumed by the shopping simulator and
+  shopping harness.
+- **`promotion-tools`** — wraps the `retail-items` index as `promotion-search`
+  (registered by `scripts/register_promotion_toolbox.py`). Consumed by the
+  promotion agent.
+- **`pricing-tools`** — wraps the **pricing MCP server**, exposing seven internal
+  pricing tools (`list_categories`, `list_products`, `get_product_pricing`,
+  `get_category_margin_forecast`, `get_volume_forecast`, `simulate_price_change`,
+  `list_personas`). Consumed by the campaign agent.
+- **`workiq-mail-tools`** — wraps the **Microsoft Agent 365 WorkIQ mail MCP
+  server** (`mcp_MailTools`), exposing read/search/send M365 mail on behalf of
+  the signed-in user (registered by `scripts/register_workiq_toolbox.py`).
+  Consumed by the campaign agent to circulate finished campaign briefs.
+- The **pricing MCP server** itself (`src/pricing_mcp_server`) runs as an
+  *internal* Azure Container App on port `8091` serving streamable-HTTP MCP. It is
+  registered **twice**: as the `pricing-tools` Foundry toolbox **and** as a BYO
+  (`ext_pricing`) tool in **Agent 365**, so the same server is governable from
+  both control planes.
+
+### Agents and their relationships
+
+- **Campaign agent** (`src/campaign_agent`) — a **Foundry hosted agent**
+  (RESPONSES / A2A / INVOCATIONS) for the retail marketing team. It joins
+  competitor promotions from AI Search (`retail-items`) with internal pricing
+  from the `pricing-tools` toolbox to reason about **margin optimization per
+  category and shopping persona**, and can circulate the finished campaign brief
+  over M365 mail through the `workiq-mail-tools` (Agent 365 WorkIQ) toolbox.
+- **Autopilot campaign agent** (`src/campaign_a365_agent`) — the same campaign
+  capability **onboarded in Agent 365 with its own identity** (a Managed Agent
+  Identity Blueprint), running as a Foundry hosted agent. It participates in
+  Agent 365 agentic notifications and emits traces to **Agent 365 observability**
+  using an exchanged agentic token.
+- **Shopping simulator** (`src/shopping_simulations`) — a **Microsoft Agent
+  Framework multi-agent workflow** (`selector → concurrent per-supplier bill
+  slots → aggregator`) running **outside Foundry** in an Azure Container App and
+  served on the Agent Framework **DevUI**. It grounds every step through the
+  `shopping-tools` toolbox over MCP, and publishes **OpenTelemetry** to
+  Application Insights so it can be registered as a Foundry **external agent** —
+  surfacing its traces in the **Foundry control plane** (matched by
+  `gen_ai.agent.id`).
+- **Shopping agent / shopping harness** (`src/shopping_agent`,
+  `src/shopping_harness`) — consumer-facing shopping assistants that reach retail
+  data either through the `supply-chain-kb` knowledge base (agentic + semantic
+  context providers) or through the `shopping-tools` toolbox.
+- **Promotion agent** — a Foundry **prompt agent** exposed over RESPONSES / A2A /
+  INVOCATIONS that surfaces promotion and pricing details via `promotion-tools`.
+
+### How it all connects
+
+```mermaid
+flowchart TB
+    subgraph ingest[Ingestion]
+        flyers[Weekly flyers<br/>PDF / image / web]
+        proc[promotion_ingestion<br/>vision extraction]
+        flyers --> proc
+    end
+
+    subgraph foundry[Azure AI Foundry control plane]
+        search[(Azure AI Search<br/>suppliers · categories · items)]
+        kb[[FoundryIQ KB<br/>supply-chain-kb]]
+        tb_shop{{shopping-tools}}
+        tb_promo{{promotion-tools}}
+        tb_price{{pricing-tools}}
+        tb_workiq{{workiq-mail-tools}}
+        campaign[Campaign agent<br/>hosted]
+        promo[Promotion agent<br/>prompt agent]
+    end
+
+    subgraph aca[Azure Container Apps]
+        pricing[pricing MCP server<br/>internal :8091]
+        sim[Shopping simulator<br/>Agent Framework + DevUI]
+    end
+
+    subgraph a365[Agent 365]
+        autopilot[Autopilot campaign agent<br/>own identity]
+        byo[ext_pricing BYO tool]
+        mail[WorkIQ mail<br/>mcp_MailTools]
+        obs[(Agent 365 observability)]
+    end
+
+    proc --> search
+    search --> kb
+    search --> tb_shop
+    search --> tb_promo
+    pricing --> tb_price
+    pricing --> byo
+    mail --> tb_workiq
+
+    tb_price --> campaign
+    tb_workiq --> campaign
+    tb_promo --> promo
+    tb_shop --> sim
+    kb --> campaign
+
+    sim -. OpenTelemetry .-> foundry
+    autopilot -. traces .-> obs
+    byo --> autopilot
+```
+
 ---
+
 
 ## Components
 
@@ -432,6 +571,9 @@ Serves the RESPONSES protocol on `PORT` (default `8088`). Without
 | `PRICING_TOOLBOX_NAME` | Foundry toolbox wrapping the pricing MCP server (default: `pricing-tools`) |
 | `TOOLBOX_MCP_ENDPOINT` | Explicit toolbox MCP URL (overrides the derived one) |
 | `PRICING_MCP_URL` | Direct pricing MCP URL for local dev (bypasses the toolbox) |
+| `WORKIQ_TOOLBOX_NAME` | Foundry toolbox wrapping the WorkIQ mail MCP server (default: `workiq-mail-tools`) |
+| `WORKIQ_MCP_URL` | Direct WorkIQ MCP URL for local dev (bypasses the toolbox) |
+| `CAMPAIGN_WORKIQ_ENABLED` | Attach the WorkIQ mail tool to the agent (default: `true`) |
 | `PORT` | Hosted agent server port (default: `8088`) |
 
 ---

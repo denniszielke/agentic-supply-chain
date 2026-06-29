@@ -15,8 +15,11 @@ Usage::
     python -m scripts.deploy_shopping_simulator           # deploy existing image
     python -m scripts.deploy_shopping_simulator --no-logs # deploy without tailing logs
 
-After the deployment completes the script tails the running instance's console
-logs (``az containerapp logs show --follow``); pass ``--no-logs`` to skip this.
+After the deployment completes the script registers the workflow as a Foundry
+**external agent** (so its telemetry appears in the Foundry trace view) and then
+shows the latest console log lines for the running instance
+(``az containerapp logs show``). Pass ``--no-register`` to skip registration and
+``--no-logs`` to skip the log tail.
 
 Environment variables (populated by ``azd up`` into ``./.env``):
   AZURE_RESOURCE_GROUP                   target resource group (required)
@@ -25,6 +28,8 @@ Environment variables (populated by ``azd up`` into ``./.env``):
   AZURE_IDENTITY_NAME                    user-assigned managed identity (required)
   AZURE_AI_PROJECT_ENDPOINT              Foundry project endpoint (required)
   APPLICATIONINSIGHTS_CONNECTION_STRING  telemetry sink
+  AGENT_NAME                             external-agent name (default: shopping-simulator)
+  OTEL_AGENT_ID                          gen_ai.agent.id / otel_agent_id (default: <AGENT_NAME>-v1)
   SHOPPING_TOOLBOX_NAME                  toolbox to consume (default: shopping-tools)
   TAG                                    image tag (default: latest)
   SHOPPING_SIM_EXTERNAL                  "true" for public ingress (default: true)
@@ -37,11 +42,26 @@ import subprocess
 import sys
 from pathlib import Path
 
-from scripts.deploy_helpers import build_image, deploy_container_app, get_env, shared_agent_env
+from azure.ai.projects.models import ExternalAgentDefinition
+
+from scripts.deploy_helpers import (
+    build_image,
+    deploy_container_app,
+    get_client,
+    get_env,
+    shared_agent_env,
+)
 
 APP_NAME = os.getenv("SHOPPING_SIM_APP_NAME", "shopping-simulator")
 PORT = int(os.getenv("SHOPPING_SIM_PORT", "8080"))
 _DOCKERFILE = "src/shopping_simulations/Dockerfile"
+
+# External-agent identity. AGENT_NAME is the Foundry registration name and
+# OTEL_AGENT_ID is stamped on every span as gen_ai.agent.id; the registration's
+# otel_agent_id must match it. Defined once here so the container env and the
+# registration call below can't drift apart.
+AGENT_NAME = os.getenv("AGENT_NAME", "shopping-simulator")
+OTEL_AGENT_ID = os.getenv("OTEL_AGENT_ID", f"{AGENT_NAME}-v1")
 
 # Built-in role definition IDs.
 _COGNITIVE_SERVICES_USER = "a97b65f3-24c7-4388-baec-2e87135dc908"
@@ -105,6 +125,11 @@ def deploy(tag: str | None = None) -> None:
     env_vars = {
         **shared_agent_env(project_endpoint),
         "APPLICATIONINSIGHTS_CONNECTION_STRING": os.getenv("APPLICATIONINSIGHTS_CONNECTION_STRING", ""),
+        # Pin the external-agent identity explicitly so the runtime
+        # gen_ai.agent.id matches the Foundry registration's otel_agent_id
+        # (shopping-simulator-v1) and can't drift from telemetry.py defaults.
+        "AGENT_NAME": AGENT_NAME,
+        "OTEL_AGENT_ID": OTEL_AGENT_ID,
         "SHOPPING_TOOLBOX_NAME": os.getenv("SHOPPING_TOOLBOX_NAME", "shopping-tools"),
         "TOOLBOX_MCP_ENDPOINT": os.getenv("TOOLBOX_MCP_ENDPOINT", ""),
         "SHOPPING_SIM_MAX_SUPPLIERS": os.getenv("SHOPPING_SIM_MAX_SUPPLIERS", "5"),
@@ -130,22 +155,44 @@ def deploy(tag: str | None = None) -> None:
 
 
 def tail_logs() -> None:
-    """Stream the running instance's console logs until interrupted (Ctrl+C)."""
+    """Show the latest 20 console log lines for the running instance."""
     rg = get_env("AZURE_RESOURCE_GROUP")
-    print(f"\n==> Tailing console logs for '{APP_NAME}' (Ctrl+C to stop)\n")
+    print(f"\n==> Showing the latest 20 console log lines for '{APP_NAME}'\n")
+    subprocess.run(
+        ["az", "containerapp", "logs", "show",
+         "--name", APP_NAME, "--resource-group", rg,
+         "--type", "console", "--tail", "20"],
+        check=False,
+    )
+
+
+def register_external_agent() -> None:
+    """Register the workflow as a Foundry external agent for observability.
+
+    Foundry matches incoming spans to this registration by
+    ``gen_ai.agent.id == otel_agent_id``; we pass the same ``OTEL_AGENT_ID`` the
+    container stamps on every span. ``create_version`` is idempotent for an
+    existing name (it adds a revision), so re-running a deploy is safe.
+    """
+    print(f"\n==> Registering external agent '{AGENT_NAME}' (otel_agent_id={OTEL_AGENT_ID})\n")
     try:
-        subprocess.run(
-            ["az", "containerapp", "logs", "show",
-             "--name", APP_NAME, "--resource-group", rg,
-             "--type", "console", "--follow", "--tail", "100"],
-            check=False,
+        client = get_client()
+        agent = client.agents.create_version(
+            agent_name=AGENT_NAME,
+            description="Shopping simulator multi-agent workflow (Agent Framework).",
+            definition=ExternalAgentDefinition(otel_agent_id=OTEL_AGENT_ID),
         )
-    except KeyboardInterrupt:
-        print("\nStopped tailing logs.")
+        resolved = agent.versions.latest.definition.otel_agent_id
+        print(f"Registered external agent: {agent.name}")
+        print(f"Resolved otel_agent_id: {resolved}")
+    except Exception as exc:  # pragma: no cover - registration must not fail the deploy
+        print(f"WARNING: external-agent registration failed ({exc}); deployment is unaffected.")
 
 
 if __name__ == "__main__":
     built_tag = build() if "--build" in sys.argv else None
     deploy(tag=built_tag)
+    if "--no-register" not in sys.argv:
+        register_external_agent()
     if "--no-logs" not in sys.argv:
         tail_logs()

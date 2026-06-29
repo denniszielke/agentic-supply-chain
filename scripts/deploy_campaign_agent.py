@@ -2,8 +2,10 @@
 
 Deploy the **campaign planning agent** as an Azure AI Foundry hosted agent
 (RESPONSES protocol). It consumes the pricing MCP server through the Foundry
-toolbox registered in step 2 (``PRICING_TOOLBOX_NAME``), so run this only after
-``scripts/deploy_pricing_mcp_server.py`` and ``scripts/register_pricing_toolbox.py``.
+toolbox registered in step 2 (``PRICING_TOOLBOX_NAME``) and the WorkIQ mail MCP
+server through the ``WORKIQ_TOOLBOX_NAME`` toolbox, so run this only after
+``scripts/deploy_pricing_mcp_server.py``, ``scripts/register_pricing_toolbox.py``
+and ``scripts/register_workiq_toolbox.py``.
 
 Environment variables:
   AZURE_AI_PROJECT_ENDPOINT           Foundry project endpoint (required).
@@ -12,6 +14,10 @@ Environment variables:
   PRICING_TOOLBOX_NAME                Toolbox the agent consumes (default: pricing-tools).
   TOOLBOX_MCP_ENDPOINT                Explicit toolbox MCP URL (optional override).
   PRICING_MCP_URL                     Direct MCP URL to bypass the toolbox (optional).
+  WORKIQ_TOOLBOX_NAME                 WorkIQ mail toolbox (default: workiq-mail-tools).
+  WORKIQ_TOOLBOX_MCP_ENDPOINT         Explicit WorkIQ toolbox MCP URL (optional override).
+  WORKIQ_MCP_URL                      Direct WorkIQ MCP URL to bypass the toolbox (optional).
+  CAMPAIGN_WORKIQ_ENABLED             Attach the WorkIQ mail tool (default: true).
 """
 
 from __future__ import annotations
@@ -69,6 +75,10 @@ def deploy() -> None:
             "PRICING_TOOLBOX_NAME": os.getenv("PRICING_TOOLBOX_NAME", "pricing-tools"),
             "TOOLBOX_MCP_ENDPOINT": os.getenv("TOOLBOX_MCP_ENDPOINT", ""),
             "PRICING_MCP_URL": os.getenv("PRICING_MCP_URL", ""),
+            "WORKIQ_TOOLBOX_NAME": os.getenv("WORKIQ_TOOLBOX_NAME", "workiq-mail-tools"),
+            "WORKIQ_TOOLBOX_MCP_ENDPOINT": os.getenv("WORKIQ_TOOLBOX_MCP_ENDPOINT", ""),
+            "WORKIQ_MCP_URL": os.getenv("WORKIQ_MCP_URL", ""),
+            "CAMPAIGN_WORKIQ_ENABLED": os.getenv("CAMPAIGN_WORKIQ_ENABLED", "true"),
         },
         agent_card=CAMPAIGN_AGENT_CARD,
     )

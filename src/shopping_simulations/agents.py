@@ -56,6 +56,7 @@ from agent_framework import (
 from agent_framework.foundry import FoundryChatClient
 from azure.identity import DefaultAzureCredential, get_bearer_token_provider
 from dotenv import load_dotenv
+from opentelemetry import trace
 
 # Allow standalone execution from the project root.
 _src_root = Path(__file__).resolve().parents[2]
@@ -69,6 +70,11 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name
 logging.getLogger("azure").setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 
+# Tracer backed by the global provider that telemetry.setup_telemetry() wires to
+# Application Insights; used to stamp custom attributes (e.g. supplier id) onto
+# each executor's span. Agent and tool (MCP) spans nest underneath these.
+_tracer = trace.get_tracer("shopping_simulator")
+
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
@@ -77,7 +83,7 @@ _PROJECT_ENDPOINT = os.environ["AZURE_AI_PROJECT_ENDPOINT"]
 _MODEL = (
     os.getenv("AZURE_OPENAI_CHAT_DEPLOYMENT_NAME")
     or os.getenv("AZURE_AI_MODEL_DEPLOYMENT_NAME")
-    or "gpt-4.1-mini"
+    or "gpt-5.4-mini"
 )
 _TOOLBOX_NAME = os.getenv("SHOPPING_TOOLBOX_NAME", "shopping-tools")
 _TOOLBOX_ENDPOINT = os.getenv("TOOLBOX_MCP_ENDPOINT") or (
@@ -191,13 +197,19 @@ class SupplierSelector(Executor):
             instructions=SELECTOR_PROMPT.format(max_suppliers=_MAX_SUPPLIERS),
             tools=[build_shopping_tool()],
             name="supplier-selector",
+            id="supplier-selector",
         )
 
     @handler
     async def select(self, request: str, ctx: WorkflowContext[dict]) -> None:
-        reply = await self._agent.run(request)
-        suppliers = [s.strip() for s in reply.text.replace("\n", ",").split(",") if s.strip()]
-        suppliers = suppliers[:_MAX_SUPPLIERS] or ["the most relevant supplier"]
+        with _tracer.start_as_current_span("supplier-selector.select") as span:
+            span.set_attribute("gen_ai.agent.id", "supplier-selector")
+            span.set_attribute("shopping.request", request)
+            reply = await self._agent.run(request)
+            suppliers = [s.strip() for s in reply.text.replace("\n", ",").split(",") if s.strip()]
+            suppliers = suppliers[:_MAX_SUPPLIERS] or ["the most relevant supplier"]
+            span.set_attribute("shopping.selected_suppliers", ", ".join(suppliers))
+            span.set_attribute("shopping.selected_supplier_count", len(suppliers))
         logger.info("Selected suppliers: %s", suppliers)
         await ctx.send_message({"request": request, "suppliers": suppliers})
 
@@ -223,13 +235,18 @@ class SupplierBill(Executor):
             return
 
         supplier = suppliers[self._index]
-        agent = Agent(
-            _chat_client(),
-            instructions=PROPOSAL_PROMPT.format(supplier=supplier),
-            tools=[build_shopping_tool()],
-            name=f"bill-{supplier}",
-        )
-        reply = await agent.run(f"Shopping list: {request}")
+        with _tracer.start_as_current_span("supplier-bill.propose") as span:
+            span.set_attribute("supplier.id", supplier)
+            span.set_attribute("supplier.slot_index", self._index)
+            span.set_attribute("gen_ai.agent.id", f"bill-{supplier}")
+            agent = Agent(
+                _chat_client(),
+                instructions=PROPOSAL_PROMPT.format(supplier=supplier),
+                tools=[build_shopping_tool()],
+                name=f"bill-{supplier}",
+                id=f"bill-{supplier}",
+            )
+            reply = await agent.run(f"Shopping list: {request}")
         await ctx.send_message(f"=== Bill from {supplier} ===\n{reply.text}")
 
 
@@ -238,12 +255,17 @@ class Aggregator(Executor):
 
     def __init__(self) -> None:
         super().__init__(id="aggregator")
-        self._agent = Agent(_chat_client(), instructions=AGGREGATOR_PROMPT, name="aggregator")
+        self._agent = Agent(
+            _chat_client(), instructions=AGGREGATOR_PROMPT, name="aggregator", id="aggregator"
+        )
 
     @handler
     async def aggregate(self, bills: list[str], ctx: WorkflowContext[None, str]) -> None:
         joined = "\n\n".join(b for b in bills if b and b.strip())
-        reply = await self._agent.run(f"Per-supplier bills:\n\n{joined}")
+        with _tracer.start_as_current_span("aggregator.aggregate") as span:
+            span.set_attribute("gen_ai.agent.id", "aggregator")
+            span.set_attribute("shopping.bill_count", sum(1 for b in bills if b and b.strip()))
+            reply = await self._agent.run(f"Per-supplier bills:\n\n{joined}")
         await ctx.yield_output(reply.text)
 
 

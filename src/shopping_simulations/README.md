@@ -37,7 +37,7 @@ development, set `SHOPPING_MCP_URL` to bypass the toolbox.
 
 ```bash
 export AZURE_AI_PROJECT_ENDPOINT="https://<project>.services.ai.azure.com/api/projects/<name>"
-export AZURE_OPENAI_CHAT_DEPLOYMENT_NAME="gpt-4.1-mini"
+export AZURE_OPENAI_CHAT_DEPLOYMENT_NAME="gpt-5.4-mini"
 # optional, telemetry to App Insights:
 # export APPLICATIONINSIGHTS_CONNECTION_STRING="InstrumentationKey=...;..."
 # optional, local MCP server instead of the toolbox:
@@ -46,7 +46,7 @@ python -m src.shopping_simulations.server
 ```
 
 Open the DevUI at <http://localhost:8080> and submit a shopping list, e.g.
-`Milch, Hackfleisch, Tomaten, Kaffee`.
+`Ich möchte zu Aldi Nord, Aldi Süd, Edeka, Netto und Rewe gehen. Milch, Hackfleisch, Tomaten, Kaffee`.
 
 > The server binds to loopback (`127.0.0.1`) by default, so the DevUI runs
 > without auth locally. On a non-loopback bind (e.g. the Container App, where
@@ -114,8 +114,8 @@ The container stamps every span with `gen_ai.agent.id = OTEL_AGENT_ID` (default
 | Variable | Purpose | Default |
 | --- | --- | --- |
 | `AZURE_AI_PROJECT_ENDPOINT` | Foundry project endpoint | _required_ |
-| `AZURE_OPENAI_CHAT_DEPLOYMENT_NAME` | Chat model deployment | `gpt-4.1-mini` |
-| `AZURE_AI_MODEL_DEPLOYMENT_NAME` | Fallback model deployment | `gpt-4.1-mini` |
+| `AZURE_OPENAI_CHAT_DEPLOYMENT_NAME` | Chat model deployment | `gpt-5.4-mini` |
+| `AZURE_AI_MODEL_DEPLOYMENT_NAME` | Fallback model deployment | `gpt-5.4-mini` |
 | `SHOPPING_TOOLBOX_NAME` | Foundry toolbox the agents consume | `shopping-tools` |
 | `TOOLBOX_MCP_ENDPOINT` | Explicit toolbox MCP URL (overrides derived) | _optional_ |
 | `SHOPPING_MCP_URL` | Direct MCP URL for local dev (bypasses toolbox) | _optional_ |

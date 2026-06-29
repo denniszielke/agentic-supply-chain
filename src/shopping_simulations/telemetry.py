@@ -35,6 +35,14 @@ def setup_telemetry() -> None:
     os.environ.setdefault("OTEL_SEMCONV_STABILITY_OPT_IN", "gen_ai_latest_experimental")
     os.environ.setdefault("OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT", "SPAN_AND_EVENT")
 
+    # Turn on Agent Framework's own observability so every agent run and tool
+    # (MCP) call emits spans into the global Azure Monitor provider configured
+    # below. Without this only the raw model HTTP calls would be traced, not the
+    # per-agent / per-tool spans. These flags must be set before agent_framework
+    # is imported, so call setup_telemetry() at the very top of the process.
+    os.environ.setdefault("ENABLE_OTEL", "true")
+    os.environ.setdefault("ENABLE_SENSITIVE_DATA", "true")
+
     try:
         from microsoft.opentelemetry import use_microsoft_opentelemetry
 

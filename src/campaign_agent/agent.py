@@ -17,6 +17,11 @@ is grounded by two evidence sources:
      toolbox** MCP endpoint, so the server is published, discovered and
      governed centrally rather than wired point-to-point.
 
+  3. **WorkIQ mail (Agent 365)** — the Microsoft Agent 365 WorkIQ mail MCP
+     server, consumed through a **Foundry toolbox**, so the agent can read,
+     search and send M365 mail on behalf of the signed-in user (e.g. circulate
+     the finished campaign brief to the marketing team).
+
 Business reasoning is framed by the system prompt around three capabilities that
 mirror the repository's skills (campaign planning, portfolio analysis and
 internal pricing optimization).
@@ -32,6 +37,11 @@ Environment variables:
   TOOLBOX_MCP_ENDPOINT                  — explicit toolbox MCP URL (optional)
   PRICING_MCP_URL                       — direct pricing MCP URL for local dev,
                                           bypasses the toolbox (optional)
+  WORKIQ_TOOLBOX_NAME                   — Foundry toolbox wrapping the WorkIQ
+                                          mail MCP server (default: workiq-mail-tools)
+  WORKIQ_TOOLBOX_MCP_ENDPOINT           — explicit WorkIQ toolbox MCP URL (optional)
+  WORKIQ_MCP_URL                        — direct WorkIQ MCP URL for local dev (optional)
+  CAMPAIGN_WORKIQ_ENABLED               — attach the WorkIQ mail tool (default: true)
   AZURE_SEARCH_ENDPOINT                 — competitor promotion index (required)
   AZURE_SEARCH_ADMIN_KEY                — optional; else DefaultAzureCredential
   AZURE_SEARCH_ITEM_INDEX_NAME          — default: retail-items
@@ -91,6 +101,16 @@ _TOOLBOX_ENDPOINT = os.getenv("TOOLBOX_MCP_ENDPOINT") or (
 )
 _DIRECT_PRICING_MCP_URL = os.getenv("PRICING_MCP_URL", "").strip()
 
+# WorkIQ mail (Microsoft Agent 365) is consumed through a Foundry toolbox so the
+# campaign agent can draft, search and send the finished plan over M365 mail on
+# behalf of the signed-in user. Disable by setting CAMPAIGN_WORKIQ_ENABLED=false.
+_WORKIQ_ENABLED = os.getenv("CAMPAIGN_WORKIQ_ENABLED", "true").strip().lower() == "true"
+_WORKIQ_TOOLBOX_NAME = os.getenv("WORKIQ_TOOLBOX_NAME", "workiq-mail-tools")
+_WORKIQ_TOOLBOX_ENDPOINT = os.getenv("WORKIQ_TOOLBOX_MCP_ENDPOINT") or (
+    f"{_PROJECT_ENDPOINT.rstrip('/')}/toolboxes/{_WORKIQ_TOOLBOX_NAME}/mcp?api-version=v1"
+)
+_DIRECT_WORKIQ_MCP_URL = os.getenv("WORKIQ_MCP_URL", "").strip()
+
 
 CAMPAIGN_AGENT_SYSTEM_PROMPT = """\
 You are the Campaign Planning Agent for a grocery retailer — a retailer-side
@@ -118,6 +138,12 @@ You reason over two evidence sources and must always ground claims in them:
     Pricing MCP server: list_categories, list_products, get_product_pricing,
     get_category_margin_forecast, get_volume_forecast, simulate_price_change,
     list_personas.
+
+You also have the WorkIQ mail tools (Microsoft Agent 365) to read, search and
+send M365 mail on behalf of the signed-in user — for example to circulate the
+finished campaign brief to the marketing team. Only send mail when the user
+explicitly asks, confirm the recipients and subject first, and summarise what
+you sent afterwards.
 
 Operating principles:
   1. Optimise WEEKLY GROSS MARGIN (unit margin × forecast volume), never unit
@@ -266,10 +292,49 @@ def build_pricing_tool() -> MCPStreamableHTTPTool:
 
 
 # ---------------------------------------------------------------------------
+# WorkIQ mail MCP tool (Foundry toolbox, or direct for local dev)
+# ---------------------------------------------------------------------------
+
+def build_workiq_tool() -> MCPStreamableHTTPTool:
+    """Build the WorkIQ mail MCP tool.
+
+    Wraps the Microsoft Agent 365 WorkIQ mail MCP server (registered as the
+    ``workiq-mail-tools`` Foundry toolbox by
+    ``scripts/register_workiq_toolbox.py``) so the campaign agent can read,
+    search and send M365 mail on behalf of the signed-in user. By default it is
+    consumed through the **Foundry toolbox** (Entra-authenticated, governed
+    centrally); ``WORKIQ_MCP_URL`` connects directly for local development.
+    """
+    if _DIRECT_WORKIQ_MCP_URL:
+        logger.info("Using direct WorkIQ MCP endpoint %s", _DIRECT_WORKIQ_MCP_URL)
+        return MCPStreamableHTTPTool(
+            name="workiq-mail",
+            url=_DIRECT_WORKIQ_MCP_URL,
+            load_prompts=False,
+        )
+
+    logger.info("Using Foundry toolbox WorkIQ endpoint %s", _WORKIQ_TOOLBOX_ENDPOINT)
+    http_client = httpx.AsyncClient(
+        auth=_ToolboxAuth(_toolbox_token_provider),
+        headers={"Foundry-Features": "Toolboxes=V1Preview"},
+        timeout=120.0,
+    )
+    return MCPStreamableHTTPTool(
+        name="workiq-mail",
+        url=_WORKIQ_TOOLBOX_ENDPOINT,
+        http_client=http_client,
+        load_prompts=False,
+    )
+
+
+# ---------------------------------------------------------------------------
 # Agent assembly
 # ---------------------------------------------------------------------------
 
 _pricing_tool = build_pricing_tool()
+_tools: list = [search_competitor_promotions, _pricing_tool]
+if _WORKIQ_ENABLED:
+    _tools.append(build_workiq_tool())
 
 _chat_client = FoundryChatClient(
     project_endpoint=_PROJECT_ENDPOINT,
@@ -280,7 +345,7 @@ _chat_client = FoundryChatClient(
 agent = _chat_client.as_agent(
     name="campaign-planner",
     instructions=CAMPAIGN_AGENT_SYSTEM_PROMPT,
-    tools=[search_competitor_promotions, _pricing_tool],
+    tools=_tools,
 )
 
 
