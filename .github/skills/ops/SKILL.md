@@ -86,6 +86,7 @@ Images built:
 - `shopping-chat` — from `src/shopping_chat/Dockerfile`
 - `promotion-ingestion` — from `src/promotion_ingestion/Dockerfile`
 - `shopping-agent` — from `src/shopping_agent/Dockerfile`
+- `shopping-simulator` — from `src/shopping_simulations/Dockerfile`
 - `pricing-mcp-server` — from `src/pricing_mcp_server/Dockerfile`
 - `campaign-agent` — from `src/campaign_agent/Dockerfile`
 
@@ -174,6 +175,50 @@ python -m scripts.deploy_agents
 
 Required env vars (from `.env`):
 - `AZURE_RESOURCE_GROUP`, `AZURE_REGISTRY`, `AZURE_CONTAINER_APPS_ENVIRONMENT_NAME`, `AZURE_IDENTITY_NAME`
+
+---
+
+## 5b. Shopping Simulator Workflow (multi-agent, DevUI)
+
+A **multi-agent workflow** (Microsoft Agent Framework) that simulates one
+shopping bill **per supplier in parallel** and recommends the cheapest one- or
+two-stop tour. It is served on the **DevUI** from an externally ingressed
+Container App and publishes OpenTelemetry traces to Application Insights for use
+as a Foundry [external agent](https://learn.microsoft.com/en-us/azure/foundry/agents/how-to/register-external-agent).
+Source: [src/shopping_simulations](../../../src/shopping_simulations).
+
+Prerequisite: the shopping toolbox is registered (see §8 / harness README):
+```bash
+python -m scripts.register_shopping_toolbox
+```
+
+Build the image in ACR, then deploy the Container App (public DevUI on 8080):
+```bash
+python -m scripts.deploy_shopping_simulator --build
+```
+
+Deploy only (image already in ACR):
+```bash
+python -m scripts.deploy_shopping_simulator
+```
+
+The deploy script also grants the user-assigned managed identity
+**Cognitive Services User** (consume Foundry models) and **Monitoring Metrics
+Publisher** (publish telemetry to Application Insights). It prints the public
+DevUI URL: `https://<fqdn>/`.
+
+Key overrides:
+- `SHOPPING_SIM_APP_NAME` — Container App name (default: `shopping-simulator`)
+- `SHOPPING_SIM_PORT` — DevUI / container port (default: `8080`)
+- `SHOPPING_SIM_EXTERNAL=false` — internal ingress (default: public)
+- `SHOPPING_SIM_MAX_SUPPLIERS` — concurrent supplier-bill slots (default: `5`)
+- `SHOPPING_TOOLBOX_NAME` — toolbox the agents consume (default: `shopping-tools`)
+- `OTEL_AGENT_ID` — `gen_ai.agent.id` for external-agent trace matching
+  (default: `shopping-simulator-v1`)
+
+After telemetry flows, register it as a Foundry external agent with
+`ExternalAgentDefinition(otel_agent_id="shopping-simulator-v1")` — see
+[src/shopping_simulations/README.md](../../../src/shopping_simulations/README.md).
 
 ---
 
@@ -474,6 +519,12 @@ All variables are written to `./.env` by `azd up`.
 | `PROMOTION_TOOLBOX_MCP_URL` | manual | explicit promotion toolbox MCP URL (optional) |
 | `PROMOTION_MCP_CONNECTION_ID` | manual | Foundry connection ID for restricted toolbox (optional) |
 | `AZURE_AI_PROMOTION_AGENT_NAME` | manual | default: `promotion-agent` |
+| `SHOPPING_TOOLBOX_NAME` | manual | default: `shopping-tools` |
+| `SHOPPING_SIM_APP_NAME` | manual | simulator Container App name (default: `shopping-simulator`) |
+| `SHOPPING_SIM_PORT` | manual | simulator DevUI port (default: `8080`) |
+| `SHOPPING_SIM_EXTERNAL` | manual | `true` for public ingress (default: `true`) |
+| `SHOPPING_SIM_MAX_SUPPLIERS` | manual | concurrent supplier-bill slots (default: `5`) |
+| `OTEL_AGENT_ID` | manual | `gen_ai.agent.id` for external-agent matching (default: `shopping-simulator-v1`) |
 
 ---
 
