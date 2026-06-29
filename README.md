@@ -11,6 +11,7 @@ An agentic scenario that solves **supplier optimization for retail shopping**. W
 | **shopping_chat** | `src/shopping_chat` | Containerized MCP app + interactive browser UI for product search, recommendations, and supplier inventory |
 | **promotion_ingestion** | `src/promotion_ingestion` | Container job that downloads and indexes promotional flyers (PDF, images, websites) into Azure AI Search |
 | **shopping_agent** | `src/shopping_agent` | Hosted agent with A2A-style HTTP API for shopping list optimization across current promotions |
+| **shopping_simulations** | `src/shopping_simulations` | **Microsoft Agent Framework** multi-agent workflow (selector → concurrent per-supplier bill slots → aggregator) served on the **DevUI** from a Container App, with telemetry to Application Insights for use as a Foundry external agent. See [src/shopping_simulations/README.md](src/shopping_simulations/README.md) |
 | **campaign_agent** | `src/campaign_agent` | Foundry **hosted agent** for the retail marketing team: reasons about margin optimization vs. competitor promotions, per category and shopping persona; consumes internal pricing via a Foundry toolbox |
 | **pricing_mcp_server** | `src/pricing_mcp_server` | MCP server exposing internal pricing data (procurement cost, weekly volume forecasts, margin), published as a Foundry toolbox and consumed by the campaign agent |
 | **shared** | `src/shared` | Shared Pydantic data models (`Supplier`, `Category`, `Item`), shopping planner logic, and seed data |
@@ -56,6 +57,7 @@ agentic-supply-chain/
 │   ├── shopping_chat/            # MCP app + UI  →  see src/shopping_chat/README.md
 │   ├── promotion_ingestion/      # Flyer processor  →  see src/promotion_ingestion/README.md
 │   ├── shopping_agent/           # A2A planning agent  →  see src/shopping_agent/README.md
+│   ├── shopping_simulations/     # Agent Framework multi-agent workflow (DevUI)  →  see src/shopping_simulations/README.md
 │   ├── pricing_mcp_server/       # Internal pricing MCP server  →  see src/pricing_mcp_server/README.md
 │   └── campaign_agent/           # Campaign planning hosted agent  →  see src/campaign_agent/README.md
 ├── scripts/
@@ -114,6 +116,7 @@ All scripts read configuration from `./.env` (written by `azd up`). Run them fro
 | `scripts/build_containers.sh <AZURE_ENV_NAME> [TAG]` | Build all service images in ACR (no local Docker) |
 | `scripts/deploy_agents.py` | Deploy `shopping-chat`, `promotion-ingestion`, `shopping-agent` as Container Apps; optionally hosted agents |
 | `scripts/deploy_hosted_agents.py` | Deploy the shopping and campaign agents as Foundry hosted agents |
+| `python -m scripts.deploy_shopping_simulator [--build]` | Build/deploy the **shopping simulator** workflow as an externally ingressed Container App (DevUI), and grant its identity Cognitive Services User + Monitoring Metrics Publisher. See [src/shopping_simulations/README.md](src/shopping_simulations/README.md) |
 | `scripts/deploy_helpers.py` | Shared helpers for image builds and the Foundry client (imported, not run directly) |
 
 #### Campaign-agent pipeline (four discrete steps)

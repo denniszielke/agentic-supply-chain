@@ -13,6 +13,10 @@ Usage::
 
     python -m scripts.deploy_shopping_simulator --build   # build in ACR, then deploy
     python -m scripts.deploy_shopping_simulator           # deploy existing image
+    python -m scripts.deploy_shopping_simulator --no-logs # deploy without tailing logs
+
+After the deployment completes the script tails the running instance's console
+logs (``az containerapp logs show --follow``); pass ``--no-logs`` to skip this.
 
 Environment variables (populated by ``azd up`` into ``./.env``):
   AZURE_RESOURCE_GROUP                   target resource group (required)
@@ -125,6 +129,23 @@ def deploy(tag: str | None = None) -> None:
         print("\nDeployed, but no ingress FQDN returned — check the Container App ingress.")
 
 
+def tail_logs() -> None:
+    """Stream the running instance's console logs until interrupted (Ctrl+C)."""
+    rg = get_env("AZURE_RESOURCE_GROUP")
+    print(f"\n==> Tailing console logs for '{APP_NAME}' (Ctrl+C to stop)\n")
+    try:
+        subprocess.run(
+            ["az", "containerapp", "logs", "show",
+             "--name", APP_NAME, "--resource-group", rg,
+             "--type", "console", "--follow", "--tail", "100"],
+            check=False,
+        )
+    except KeyboardInterrupt:
+        print("\nStopped tailing logs.")
+
+
 if __name__ == "__main__":
     built_tag = build() if "--build" in sys.argv else None
     deploy(tag=built_tag)
+    if "--no-logs" not in sys.argv:
+        tail_logs()

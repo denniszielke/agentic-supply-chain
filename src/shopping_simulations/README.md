@@ -1,8 +1,8 @@
 # Shopping Simulator Workflow
 
 A **multi-agent workflow** that, given a shopping ask (a list of products or
-product categories), simulates the best possible shopping bill **per supplier in
-parallel** and recommends the cheapest one- or two-stop shopping tour.
+product categories), simulates the best possible shopping bill **per supplier
+concurrently** and recommends the cheapest one- or two-stop shopping tour.
 
 Built with the **[Microsoft Agent Framework](https://github.com/microsoft/agent-framework)**
 workflow engine, served on the **[DevUI](https://learn.microsoft.com/en-us/agent-framework/devui/?pivots=programming-language-python)**
@@ -13,14 +13,19 @@ published to **Application Insights** for use as a Foundry
 ## How it works
 
 ```
-selector  →  (supplier proposal × N, in parallel)  →  aggregator
+selector  →  (supplier-bill slot × N, concurrent fan-out/fan-in)  →  aggregator
 ```
 
 | Stage | Executor | Responsibility |
 | --- | --- | --- |
-| 1 | `supplier-selector` | Searches suppliers and picks the most relevant ones for the ask. |
-| 2 | `supplier-proposals` | Runs **one agent per supplier in parallel**, each building the cheapest bill from that supplier only — proposing alternatives for missing items and favouring attractive promotions. |
-| 3 | `aggregator` | Picks the single supplier that covers all items cheapest, or — when none does — the best **two-stop** tour, assigning each item to the stop with the best discount. |
+| 1 | `supplier-selector` | Searches suppliers and picks the most relevant ones for the ask (at most `SHOPPING_SIM_MAX_SUPPLIERS`). |
+| 2 | `supplier-bill-0 … N-1` | A fixed pool of slot agents is **fanned out** from the selector and run concurrently. Each slot is assigned one supplier id from the selector's list (by index) and builds the cheapest bill from that supplier only — proposing alternatives for missing items and favouring attractive promotions. Slots beyond the selected count stay idle. |
+| 3 | `aggregator` | **Fan-in** of all slot bills; picks the single supplier that covers all items cheapest, or — when none does — the best **two-stop** tour, assigning each item to the stop with the best discount. |
+
+Concurrency is modelled at the graph level: `add_fan_out_edges(selector, slots)`
+broadcasts the plan to every slot in parallel, and `add_fan_in_edges(slots,
+aggregator)` runs the aggregator once all slots complete. The slot count is fixed
+at build time by `SHOPPING_SIM_MAX_SUPPLIERS` (default `5`).
 
 All retail data is grounded through the Foundry **shopping toolbox**
 (`shopping-tools`, registered by `scripts/register_shopping_toolbox.py`):
@@ -73,6 +78,11 @@ The deploy script:
   telemetry to Application Insights).
 
 It prints the public DevUI URL: `https://<fqdn>/`.
+
+After deploying, the script **tails the running instance's console logs**
+(`az containerapp logs show --type console --follow`) so you can watch startup,
+the auto-generated DevUI bearer token, and request traffic. Pass `--no-logs` to
+skip tailing.
 
 ## Register as a Foundry external agent
 
