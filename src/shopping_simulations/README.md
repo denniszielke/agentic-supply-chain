@@ -46,7 +46,7 @@ python -m src.shopping_simulations.server
 ```
 
 Open the DevUI at <http://localhost:8080> and submit a shopping list, e.g.
-`Ich möchte zu Aldi Nord, Aldi Süd, Edeka, Netto und Rewe gehen. Milch, Hackfleisch, Tomaten, Kaffee`.
+`Ich möchte zu Aldi Nord, Aldi Süd, Edeka, Netto und Rewe gehen. Brauche Milch, Hackfleisch, Tomaten, Kaffee, Saft`.
 
 > The server binds to loopback (`127.0.0.1`) by default, so the DevUI runs
 > without auth locally. On a non-loopback bind (e.g. the Container App, where

@@ -27,7 +27,7 @@ Environment variables (populated by ``azd up`` into ``./.env``):
   AZURE_CONTAINER_APPS_ENVIRONMENT_NAME  Container Apps environment (required)
   AZURE_IDENTITY_NAME                    user-assigned managed identity (required)
   AZURE_AI_PROJECT_ENDPOINT              Foundry project endpoint (required)
-  APPLICATIONINSIGHTS_CONNECTION_STRING  telemetry sink
+  SUP_APPLICATIONINSIGHTS_CONNECTION_STRING  telemetry sink (required)
   AGENT_NAME                             external-agent name (default: shopping-simulator)
   OTEL_AGENT_ID                          gen_ai.agent.id / otel_agent_id (default: <AGENT_NAME>-v1)
   SHOPPING_TOOLBOX_NAME                  toolbox to consume (default: shopping-tools)
@@ -122,9 +122,15 @@ def deploy(tag: str | None = None) -> None:
     assign_identity_roles(principal_id)
 
     external = os.getenv("SHOPPING_SIM_EXTERNAL", "true").strip().lower() == "true"
+    # Publish telemetry to the supplier App Insights resource. The simulator is
+    # fixed on SUP_APPLICATIONINSIGHTS_CONNECTION_STRING (no fallback to the
+    # default project resource). telemetry.py reads
+    # APPLICATIONINSIGHTS_CONNECTION_STRING, so we feed the SUP connection string
+    # under that name.
+    appinsights_conn = get_env("SUP_APPLICATIONINSIGHTS_CONNECTION_STRING")
     env_vars = {
         **shared_agent_env(project_endpoint),
-        "APPLICATIONINSIGHTS_CONNECTION_STRING": os.getenv("APPLICATIONINSIGHTS_CONNECTION_STRING", ""),
+        "APPLICATIONINSIGHTS_CONNECTION_STRING": appinsights_conn,
         # Pin the external-agent identity explicitly so the runtime
         # gen_ai.agent.id matches the Foundry registration's otel_agent_id
         # (shopping-simulator-v1) and can't drift from telemetry.py defaults.
@@ -182,8 +188,8 @@ def register_external_agent() -> None:
             description="Shopping simulator multi-agent workflow (Agent Framework).",
             definition=ExternalAgentDefinition(otel_agent_id=OTEL_AGENT_ID),
         )
-        resolved = agent.versions.latest.definition.otel_agent_id
-        print(f"Registered external agent: {agent.name}")
+        resolved = agent.definition.otel_agent_id
+        print(f"Registered external agent: {agent.name} (version {agent.version})")
         print(f"Resolved otel_agent_id: {resolved}")
     except Exception as exc:  # pragma: no cover - registration must not fail the deploy
         print(f"WARNING: external-agent registration failed ({exc}); deployment is unaffected.")

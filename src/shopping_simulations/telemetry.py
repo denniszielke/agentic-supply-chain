@@ -35,14 +35,6 @@ def setup_telemetry() -> None:
     os.environ.setdefault("OTEL_SEMCONV_STABILITY_OPT_IN", "gen_ai_latest_experimental")
     os.environ.setdefault("OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT", "SPAN_AND_EVENT")
 
-    # Turn on Agent Framework's own observability so every agent run and tool
-    # (MCP) call emits spans into the global Azure Monitor provider configured
-    # below. Without this only the raw model HTTP calls would be traced, not the
-    # per-agent / per-tool spans. These flags must be set before agent_framework
-    # is imported, so call setup_telemetry() at the very top of the process.
-    os.environ.setdefault("ENABLE_OTEL", "true")
-    os.environ.setdefault("ENABLE_SENSITIVE_DATA", "true")
-
     try:
         from microsoft.opentelemetry import use_microsoft_opentelemetry
 
@@ -52,6 +44,20 @@ def setup_telemetry() -> None:
             sampling_ratio=1.0,
             instrumentation_options={
                 "fastapi": {"enabled": True},
+                # Agent Framework's own instrumentation: emits invoke_agent and
+                # execute_tool spans so every agent in the workflow and its MCP
+                # tool calls are visible. This instrumentor calls
+                # agent_framework.observability.enable_instrumentation() for us,
+                # so no ENABLE_OTEL/ENABLE_SENSITIVE_DATA env vars are needed.
+                "agent_framework": {
+                    "enabled": True,
+                    "enable_sensitive_data": True,
+                },
+                # Keep the OpenAI instrumentation enabled purely to stamp
+                # gen_ai.agent.id = OTEL_AGENT_ID on the model spans. Foundry
+                # matches external-agent traces by this value; the agent_framework
+                # spans carry each agent's own id, so without this no span would
+                # carry the registration's otel_agent_id and matching would break.
                 "openai": {
                     "enabled": True,
                     "agent_id": OTEL_AGENT_ID,
