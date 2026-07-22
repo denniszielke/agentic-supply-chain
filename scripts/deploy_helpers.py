@@ -12,10 +12,13 @@ from azure.ai.projects.models import (
     AgentCardSkill,
     AgentEndpointConfig,
     AgentEndpointProtocol,
-    AgentProtocol,
+    A2AProtocolConfiguration,
     ContainerConfiguration,
     HostedAgentDefinition,
+    InvocationsProtocolConfiguration,
+    ProtocolConfiguration,
     ProtocolVersionRecord,
+    ResponsesProtocolConfiguration,
 )
 from azure.identity import DefaultAzureCredential
 from dotenv import load_dotenv
@@ -206,7 +209,7 @@ def deploy_hosted_agent(
     env_vars = {k: v for k, v in env_vars.items() if v}
 
     protocols = [
-        ProtocolVersionRecord(protocol=AgentProtocol.RESPONSES, version="1.0.0"),
+        ProtocolVersionRecord(protocol=AgentEndpointProtocol.RESPONSES, version="1.0.0"),
     ]
     client.agents.create_version(
         agent_name=agent_name,
@@ -223,16 +226,16 @@ def deploy_hosted_agent(
     )
 
     endpoint_config = AgentEndpointConfig(
-        protocols=[
-            AgentEndpointProtocol.RESPONSES,
-            AgentEndpointProtocol.A2A,
-            AgentEndpointProtocol.INVOCATIONS,
-        ],
+        protocol_configuration=ProtocolConfiguration(
+            responses=ResponsesProtocolConfiguration(),
+            a2a=A2AProtocolConfiguration(),
+            invocations=InvocationsProtocolConfiguration(),
+        ),
     )
     patch_kwargs: dict = {"agent_name": agent_name, "agent_endpoint": endpoint_config}
     if agent_card is not None:
         patch_kwargs["agent_card"] = agent_card
-    client.beta.agents.patch_agent_details(**patch_kwargs)
+    client.agents.update_details(**patch_kwargs)
 
     if agent_card is not None:
         a2a_base = f"{project_endpoint.rstrip('/')}/agents/{agent_name}/endpoint/protocols/a2a"

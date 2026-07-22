@@ -26,6 +26,10 @@ import subprocess
 import sys
 from pathlib import Path
 
+from dotenv import load_dotenv
+
+load_dotenv()
+
 RESOURCE_GROUP = os.getenv("AZURE_RESOURCE_GROUP")
 REGISTRY = os.getenv("AZURE_REGISTRY")
 CONTAINER_APPS_ENVIRONMENT_NAME = os.getenv("AZURE_CONTAINER_APPS_ENVIRONMENT_NAME")
@@ -118,7 +122,13 @@ def deploy() -> None:
 
     if os.getenv("AZURE_AI_PROJECT_ENDPOINT") and os.getenv("AZURE_CONTAINER_REGISTRY_ENDPOINT"):
         print("\n==> Deploying hosted agents from source code")
-        run([sys.executable, str(Path(__file__).with_name("deploy_hosted_agents.py"))])
+        repo_root = Path(__file__).parent.parent
+        print("$ python -m scripts.deploy_hosted_agents")
+        subprocess.run(
+            [sys.executable, "-m", "scripts.deploy_hosted_agents"],
+            check=True,
+            cwd=str(repo_root),
+        )
     else:
         print(
             "\nSkipping hosted agent deployment. Set AZURE_AI_PROJECT_ENDPOINT and "
